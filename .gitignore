@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.log
+
+# Secrets / local config
+.env
+.env.local
+
+# Runtime data
+data/
+*.session.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

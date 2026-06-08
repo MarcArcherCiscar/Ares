@@ -7,8 +7,12 @@ export interface ChatRecord {
   sessionId?: string;
   /** Model override for this chat (falls back to config default). */
   model?: string;
-  /** Currently selected project name. */
-  project?: string;
+  /** Currently selected project name (display only). */
+  projectName?: string;
+  /** Resolved absolute working directory for the selected project. */
+  projectCwd?: string;
+  /** Cached per-project instructions for the selected project. */
+  projectInstructions?: string;
 }
 
 /** A recurring scheduled task. */

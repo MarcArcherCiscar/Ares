@@ -1,4 +1,4 @@
-import { Bot, InputFile } from "grammy";
+import { Bot, InputFile, type CommandContext, type Context } from "grammy";
 import { mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { AresConfig } from "./config.js";
@@ -20,7 +20,7 @@ const MODEL_ALIASES: Record<string, string> = {
 
 export function createBot(config: AresConfig, store: Store): Bot {
   const bot = new Bot(config.telegramBotToken);
-  const projects = new Projects(config.projectsFile, config.workspaceDir);
+  const projects = new Projects(config.projectsFile, config.workspaceDir, config.projectRoots);
   const busy = new Set<number>();
 
   const scheduler = new Scheduler(store, async (record) => {
@@ -29,6 +29,27 @@ export function createBot(config: AresConfig, store: Store): Bot {
       .catch(() => {});
     await processPrompt(record.chatId, record.prompt, record.project);
   });
+
+  /** Switch a chat to a resolved project and start a fresh session. */
+  function switchProject(chatId: number, query: string): string {
+    const matches = projects.resolve(query);
+    if (matches.length === 0) {
+      return `No project matching "${query}". Try /projects, /find <text>, or give a full path.`;
+    }
+    if (matches.length > 1) {
+      const list = matches.slice(0, 12).map((p) => `• ${p.name} — ${p.cwd}`).join("\n");
+      return `Multiple matches for "${query}":\n${list}\n\nBe more specific or paste the full path.`;
+    }
+    const p = matches[0];
+    // Switching the working tree means context differs, so reset the session.
+    store.updateChat(chatId, {
+      projectName: p.name,
+      projectCwd: p.cwd,
+      projectInstructions: p.instructions,
+      sessionId: undefined,
+    });
+    return `📁 Opened "${p.name}" (${p.cwd}).\n🧹 Started a fresh conversation.`;
+  }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   bot.use(async (ctx, next) => {
@@ -48,8 +69,10 @@ export function createBot(config: AresConfig, store: Store): Bot {
       "👋 Ares is online. Send a task and I'll work on it in the selected project.\n\n" +
         "/new — fresh conversation\n" +
         "/status — current model/project/session\n" +
-        "/projects — list projects\n" +
-        "/project <name> — switch project\n" +
+        "/projects — list configured + discovered projects\n" +
+        "/open <name|path> — open a session in a project (searches your dirs)\n" +
+        "/find <text> — search your local projects\n" +
+        "/rescan — refresh discovered projects\n" +
         "/model <opus|sonnet|haiku|id> — set the model\n" +
         '/schedule <m h dom mon dow> <prompt> — recurring task\n' +
         "/schedules — list scheduled tasks\n" +
@@ -65,7 +88,7 @@ export function createBot(config: AresConfig, store: Store): Bot {
   bot.command("status", (ctx) => {
     if (!ctx.chat) return;
     const rec = store.getChat(ctx.chat.id);
-    const project = projects.get(rec.project);
+    const project = projects.fromRecord(rec.projectName, rec.projectCwd, rec.projectInstructions);
     return ctx.reply(
       `Model: ${rec.model ?? config.model}\n` +
         `Project: ${project.name} (${project.cwd})\n` +
@@ -75,21 +98,48 @@ export function createBot(config: AresConfig, store: Store): Bot {
 
   bot.command("projects", (ctx) => {
     if (!ctx.chat) return;
-    const current = projects.get(store.getChat(ctx.chat.id).project).name;
-    const lines = projects
-      .list()
-      .map((p) => `${p.name === current ? "▸" : " "} ${p.name} — ${p.cwd}`);
-    return ctx.reply(`Projects:\n${lines.join("\n")}\n\nSwitch with /project <name>.`);
+    const rec = store.getChat(ctx.chat.id);
+    const currentCwd = projects.fromRecord(rec.projectName, rec.projectCwd, rec.projectInstructions).cwd;
+    const mark = (cwd: string) => (cwd === currentCwd ? "▸" : " ");
+
+    const configured = projects.configuredProjects();
+    const discovered = projects.discoveredProjects();
+
+    let msg = "Configured:\n" + configured.map((p) => `${mark(p.cwd)} ${p.name} — ${p.cwd}`).join("\n");
+    if (discovered.length > 0) {
+      const shown = discovered.slice(0, 30).map((p) => `${mark(p.cwd)} ${p.name} — ${p.cwd}`).join("\n");
+      const more = discovered.length > 30 ? `\n  …and ${discovered.length - 30} more (use /find)` : "";
+      msg += `\n\nDiscovered in your dirs:\n${shown}${more}`;
+    } else {
+      msg += "\n\n(No auto-discovered projects. Set ARES_PROJECTS_ROOTS to your dev folders.)";
+    }
+    msg += "\n\nOpen one with /open <name|path>.";
+    return ctx.reply(msg);
   });
 
-  bot.command("project", (ctx) => {
+  // /open and /project are synonyms.
+  const openHandler = (ctx: CommandContext<Context>) => {
     if (!ctx.chat) return;
-    const name = ctx.match.trim();
-    if (!name) return ctx.reply("Usage: /project <name>. See /projects.");
-    if (!projects.has(name)) return ctx.reply(`Unknown project "${name}". See /projects.`);
-    // Switching project changes the working tree, so start a fresh session.
-    store.updateChat(ctx.chat.id, { project: name, sessionId: undefined });
-    return ctx.reply(`📁 Switched to "${name}". Started a fresh conversation.`);
+    const query = ctx.match.trim();
+    if (!query) return ctx.reply("Usage: /open <name|path>. See /projects or /find.");
+    return ctx.reply(switchProject(ctx.chat.id, query));
+  };
+  bot.command("open", openHandler);
+  bot.command("project", openHandler);
+
+  bot.command("find", (ctx) => {
+    if (!ctx.chat) return;
+    const query = ctx.match.trim();
+    if (!query) return ctx.reply("Usage: /find <text>.");
+    const matches = projects.resolve(query);
+    if (matches.length === 0) return ctx.reply(`No local project matching "${query}".`);
+    const lines = matches.slice(0, 25).map((p) => `• ${p.name} — ${p.cwd}`);
+    return ctx.reply(`Matches for "${query}":\n${lines.join("\n")}\n\nOpen with /open <name|path>.`);
+  });
+
+  bot.command("rescan", (ctx) => {
+    const n = projects.discoveredProjects(true).length;
+    return ctx.reply(`🔄 Rescanned. Found ${n} project(s) in your dirs. See /projects.`);
   });
 
   bot.command("model", (ctx) => {
@@ -115,7 +165,7 @@ export function createBot(config: AresConfig, store: Store): Bot {
     const cron = parts.slice(0, 5).join(" ");
     const prompt = parts.slice(5).join(" ");
     if (!Scheduler.isValidCron(cron)) return ctx.reply(`Invalid cron expression: "${cron}".`);
-    const rec = scheduler.add(ctx.chat.id, cron, prompt, store.getChat(ctx.chat.id).project);
+    const rec = scheduler.add(ctx.chat.id, cron, prompt, store.getChat(ctx.chat.id).projectName);
     return ctx.reply(`⏰ Scheduled [${rec.id}] "${cron}" → ${prompt}`);
   });
 
@@ -151,7 +201,12 @@ export function createBot(config: AresConfig, store: Store): Bot {
     busy.add(chatId);
 
     const rec = store.getChat(chatId);
-    const project = projects.get(projectOverride ?? rec.project);
+    // A scheduled task may target a specific project by name; otherwise use the
+    // chat's currently selected (and persisted) project.
+    const overrideMatch = projectOverride ? projects.resolve(projectOverride)[0] : undefined;
+    const project =
+      overrideMatch ??
+      projects.fromRecord(rec.projectName, rec.projectCwd, rec.projectInstructions);
     const outputDir = join(config.dataDir, "runs", `${chatId}-${Date.now()}`);
     mkdirSync(outputDir, { recursive: true });
 
@@ -208,8 +263,9 @@ export function createBot(config: AresConfig, store: Store): Bot {
     .setMyCommands([
       { command: "new", description: "Start a fresh conversation" },
       { command: "status", description: "Show model/project/session" },
-      { command: "projects", description: "List projects" },
-      { command: "project", description: "Switch project" },
+      { command: "projects", description: "List configured + discovered projects" },
+      { command: "open", description: "Open a session in a project (searches your dirs)" },
+      { command: "find", description: "Search your local projects" },
       { command: "model", description: "Set the model" },
       { command: "schedules", description: "List scheduled tasks" },
     ])

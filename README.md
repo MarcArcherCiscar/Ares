@@ -16,6 +16,9 @@ a private, developer-only take on the OpenClaw idea: for now it speaks only to
   live progress updates, plus the Agent SDK's **automatic context compaction**.
 - 📁 **Per-project workspaces & instructions** — switch the working tree and
   system prompt per chat (`ares.projects.json`).
+- 🔍 **Local project discovery** — Ares scans your dev folders so you can
+  `/open <name>` and it finds the project in your directories (no pre-config
+  needed). Picks up `CLAUDE.md`/`.ares.md` as that project's instructions.
 - 🧠 **Model picker** per chat (`/model opus|sonnet|haiku|<id>`).
 - 📸 **Playwright screenshots** — the agent can capture a URL after UI changes
   and the image is delivered to you automatically.
@@ -29,8 +32,10 @@ a private, developer-only take on the OpenClaw idea: for now it speaks only to
 | --- | --- |
 | `/new` | Start a fresh conversation (drops the session) |
 | `/status` | Show current model, project, and session |
-| `/projects` | List configured projects |
-| `/project <name>` | Switch project (starts a fresh conversation) |
+| `/projects` | List configured **and** auto-discovered projects |
+| `/open <name\|path>` | Open a session in a project (searches your dirs); `/project` is a synonym |
+| `/find <text>` | Search your local projects |
+| `/rescan` | Refresh the discovered-projects list |
 | `/model <opus\|sonnet\|haiku\|id>` | Set the model for this chat |
 | `/schedule <m h dom mon dow> <prompt>` | Add a recurring task (cron) |
 | `/schedules` | List scheduled tasks with next run time |
@@ -62,6 +67,8 @@ Fill in `.env`:
 - `ANTHROPIC_API_KEY` — for the Claude Agent SDK.
 - `ARES_MODEL` — default model id, e.g. `claude-opus-4-8` or `claude-sonnet-4-6`.
 - `ARES_WORKSPACE_DIR` — the directory the agent works in (defaults to CWD).
+- `ARES_PROJECTS_ROOTS` — comma-separated dev folders to auto-discover projects
+  under (e.g. `~/dev,~/code`). If unset, Ares probes common dev folders.
 
 ## Run
 
@@ -72,6 +79,30 @@ npm run build && npm start
 ```
 
 Then message your bot on Telegram and give it a task.
+
+## Opening a project by name
+
+Point `ARES_PROJECTS_ROOTS` at the folders where your repos live (or rely on the
+defaults). Then from Telegram:
+
+```
+/projects            → see configured + discovered projects
+/open my-web-app     → finds the repo in your dirs and opens a session there
+/open ~/work/api     → or just give a path
+/find web            → search if you don't remember the exact name
+```
+
+A directory is discovered when it contains a project marker (`.git`,
+`package.json`, `pyproject.toml`, `go.mod`, …). If it has a `CLAUDE.md` or
+`.ares.md`, that file becomes the project's system instructions automatically.
+
+## Can the bot message me first?
+
+Telegram does **not** let a bot start a conversation with you out of the blue —
+you must press **Start** (or message it) once. After that, Ares can message you
+whenever it wants: that's how **scheduled tasks** deliver their results, and how
+screenshots are pushed to you. So the flow is: open the bot once, and from then
+on it can reach you proactively.
 
 ## ⚠️ Security
 

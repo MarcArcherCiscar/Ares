@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 
 /** Parse a comma-separated env var into a list of trimmed, non-empty strings. */
 function parseList(value: string | undefined): string[] {
@@ -8,6 +10,22 @@ function parseList(value: string | undefined): string[] {
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
+}
+
+/** Expand a leading ~ to the user's home directory, then resolve to absolute. */
+export function expandPath(p: string): string {
+  if (p === "~") return homedir();
+  if (p.startsWith("~/")) return resolve(homedir(), p.slice(2));
+  return resolve(p);
+}
+
+/** Roots to auto-discover projects under: ARES_PROJECTS_ROOTS, or common dev dirs. */
+function resolveProjectRoots(): string[] {
+  const explicit = parseList(process.env.ARES_PROJECTS_ROOTS).map(expandPath);
+  if (explicit.length > 0) return [...new Set(explicit)];
+
+  const candidates = ["~/dev", "~/code", "~/projects", "~/Projects", "~/src", "~/Developer", "~/repos", "~/git"];
+  return [...new Set(candidates.map(expandPath).filter((d) => existsSync(d)))];
 }
 
 function required(name: string): string {
@@ -33,6 +51,8 @@ export interface AresConfig {
   dataDir: string;
   /** Path to the projects definition file. */
   projectsFile: string;
+  /** Directories scanned to auto-discover local projects. */
+  projectRoots: string[];
 }
 
 export function loadConfig(): AresConfig {
@@ -56,5 +76,6 @@ export function loadConfig(): AresConfig {
     maxTurns: Number(process.env.ARES_MAX_TURNS) || 40,
     dataDir: resolve(process.env.ARES_DATA_DIR?.trim() || "data"),
     projectsFile: resolve(process.env.ARES_PROJECTS_FILE?.trim() || "ares.projects.json"),
+    projectRoots: resolveProjectRoots(),
   };
 }

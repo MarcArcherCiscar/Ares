@@ -19,13 +19,15 @@ export function expandPath(p: string): string {
   return resolve(p);
 }
 
-/** Roots to auto-discover projects under: ARES_PROJECTS_ROOTS, or common dev dirs. */
+/**
+ * Roots to auto-discover projects under. If ARES_PROJECTS_ROOTS is set, use it;
+ * otherwise default to the user's home directory so discovery is zero-config
+ * (Ares searches recursively and finds your repos wherever they live).
+ */
 function resolveProjectRoots(): string[] {
   const explicit = parseList(process.env.ARES_PROJECTS_ROOTS).map(expandPath);
-  if (explicit.length > 0) return [...new Set(explicit)];
-
-  const candidates = ["~/dev", "~/code", "~/projects", "~/Projects", "~/src", "~/Developer", "~/repos", "~/git"];
-  return [...new Set(candidates.map(expandPath).filter((d) => existsSync(d)))];
+  if (explicit.length > 0) return [...new Set(explicit.filter((d) => existsSync(d)))];
+  return [homedir()];
 }
 
 function required(name: string): string {
@@ -53,6 +55,8 @@ export interface AresConfig {
   projectsFile: string;
   /** Directories scanned to auto-discover local projects. */
   projectRoots: string[];
+  /** Maximum recursion depth when discovering projects under the roots. */
+  projectDepth: number;
 }
 
 export function loadConfig(): AresConfig {
@@ -77,5 +81,6 @@ export function loadConfig(): AresConfig {
     dataDir: resolve(process.env.ARES_DATA_DIR?.trim() || "data"),
     projectsFile: resolve(process.env.ARES_PROJECTS_FILE?.trim() || "ares.projects.json"),
     projectRoots: resolveProjectRoots(),
+    projectDepth: Number(process.env.ARES_PROJECTS_DEPTH) || 6,
   };
 }

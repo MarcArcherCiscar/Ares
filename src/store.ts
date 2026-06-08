@@ -1,28 +1,35 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
 import { join } from "node:path";
 
-/** Persisted per-chat conversation state. */
-export interface ChatRecord {
-  /** Claude Agent SDK session id, to resume conversation context. */
+/** One conversation thread, scoped to a project (keyed by its cwd). */
+export interface ProjectSession {
+  name: string;
+  /** Absolute working directory for this project. */
+  cwd: string;
+  /** Per-project system instructions (e.g. from CLAUDE.md). */
+  instructions?: string;
+  /** Claude Agent SDK session id, to resume this project's conversation. */
   sessionId?: string;
+  updatedAt: string;
+}
+
+/** Persisted per-chat state: a model and one conversation per project. */
+export interface ChatRecord {
   /** Model override for this chat (falls back to config default). */
   model?: string;
-  /** Currently selected project name (display only). */
-  projectName?: string;
-  /** Resolved absolute working directory for the selected project. */
-  projectCwd?: string;
-  /** Cached per-project instructions for the selected project. */
-  projectInstructions?: string;
+  /** cwd of the currently selected project (key into `projects`). */
+  currentCwd?: string;
+  /** Per-project conversation threads, keyed by cwd. */
+  projects: Record<string, ProjectSession>;
 }
 
 /** A recurring scheduled task. */
 export interface ScheduleRecord {
   id: string;
   chatId: number;
-  /** Cron expression (croner syntax). */
   cron: string;
   prompt: string;
-  /** Project to run in (falls back to the chat's current project). */
+  /** Project name/query to run in (falls back to the chat's current project). */
   project?: string;
   createdAt: string;
 }
@@ -32,9 +39,16 @@ interface StateFile {
   schedules: ScheduleRecord[];
 }
 
+/** Reference to a project we want to open or run in. */
+export interface ProjectRef {
+  name: string;
+  cwd: string;
+  instructions?: string;
+}
+
 /**
- * Tiny JSON-file-backed store. Synchronous and atomic-enough for a single
- * process: writes to a temp file then renames over the target.
+ * JSON-file-backed store. Synchronous and atomic-enough for a single process:
+ * writes to a temp file then renames over the target.
  */
 export class Store {
   private state: StateFile = { chats: {}, schedules: [] };
@@ -50,10 +64,7 @@ export class Store {
     if (!existsSync(this.file)) return;
     try {
       const parsed = JSON.parse(readFileSync(this.file, "utf8")) as Partial<StateFile>;
-      this.state = {
-        chats: parsed.chats ?? {},
-        schedules: parsed.schedules ?? [],
-      };
+      this.state = { chats: parsed.chats ?? {}, schedules: parsed.schedules ?? [] };
     } catch (err) {
       console.error(`Could not read ${this.file}, starting fresh:`, err);
     }
@@ -66,15 +77,78 @@ export class Store {
   }
 
   getChat(chatId: number): ChatRecord {
-    return this.state.chats[String(chatId)] ?? {};
+    const rec = this.state.chats[String(chatId)];
+    return rec ?? { projects: {} };
   }
 
-  updateChat(chatId: number, patch: Partial<ChatRecord>): ChatRecord {
+  private mutate(chatId: number, fn: (rec: ChatRecord) => void): ChatRecord {
     const key = String(chatId);
-    const next = { ...(this.state.chats[key] ?? {}), ...patch };
-    this.state.chats[key] = next;
+    const rec = this.state.chats[key] ?? { projects: {} };
+    fn(rec);
+    this.state.chats[key] = rec;
     this.save();
-    return next;
+    return rec;
+  }
+
+  setModel(chatId: number, model: string): void {
+    this.mutate(chatId, (rec) => {
+      rec.model = model;
+    });
+  }
+
+  /** The chat's currently selected project conversation, if any. */
+  current(chatId: number): ProjectSession | undefined {
+    const rec = this.getChat(chatId);
+    return rec.currentCwd ? rec.projects[rec.currentCwd] : undefined;
+  }
+
+  /**
+   * Create or update a project's conversation entry. Preserves an existing
+   * sessionId so switching back to a project resumes it. Optionally makes it
+   * the chat's current project.
+   */
+  upsertProject(chatId: number, ref: ProjectRef, opts: { setCurrent: boolean }): ProjectSession {
+    let result!: ProjectSession;
+    this.mutate(chatId, (rec) => {
+      const existing = rec.projects[ref.cwd];
+      const session: ProjectSession = {
+        name: ref.name,
+        cwd: ref.cwd,
+        instructions: ref.instructions,
+        sessionId: existing?.sessionId,
+        updatedAt: new Date().toISOString(),
+      };
+      rec.projects[ref.cwd] = session;
+      if (opts.setCurrent) rec.currentCwd = ref.cwd;
+      result = session;
+    });
+    return result;
+  }
+
+  setSession(chatId: number, cwd: string, sessionId: string): void {
+    this.mutate(chatId, (rec) => {
+      const s = rec.projects[cwd];
+      if (s) {
+        s.sessionId = sessionId;
+        s.updatedAt = new Date().toISOString();
+      }
+    });
+  }
+
+  clearSession(chatId: number, cwd: string): void {
+    this.mutate(chatId, (rec) => {
+      const s = rec.projects[cwd];
+      if (s) {
+        s.sessionId = undefined;
+        s.updatedAt = new Date().toISOString();
+      }
+    });
+  }
+
+  listProjects(chatId: number): ProjectSession[] {
+    return Object.values(this.getChat(chatId).projects).sort((a, b) =>
+      b.updatedAt.localeCompare(a.updatedAt),
+    );
   }
 
   listSchedules(chatId?: number): ScheduleRecord[] {

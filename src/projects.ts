@@ -35,12 +35,22 @@ const PROJECT_MARKERS = [
 /** Files read (in order) to seed a discovered project's instructions. */
 const INSTRUCTION_FILES = [".ares.md", "CLAUDE.md", "AGENTS.md"];
 
-const DISCOVERY_TTL_MS = 15_000;
+/** Directory names never descended into during discovery (noise / huge). */
+const SKIP_DIRS = new Set([
+  "node_modules", "vendor", "dist", "build", "out", "target", ".git", ".hg", ".svn",
+  "Library", "Applications", "AppData", "Pictures", "Music", "Movies", "Videos",
+  ".cache", ".npm", ".yarn", ".pnpm", ".cargo", ".rustup", ".gradle", ".m2",
+  ".nvm", ".local", ".config", "Trash", ".Trash", "snap", "go",
+]);
+
+const DISCOVERY_TTL_MS = 60_000;
+/** Hard cap on directories visited per scan, to bound worst-case home scans. */
+const SCAN_BUDGET = 40_000;
 
 /**
  * Resolves projects from three sources, in priority order:
  *  1. Explicitly configured projects (ares.projects.json)
- *  2. Auto-discovered projects under the configured roots (your dev folders)
+ *  2. Auto-discovered projects under the roots (your dev folders / home)
  *  3. An ad-hoc directory path the user types directly
  */
 export class Projects {
@@ -53,6 +63,7 @@ export class Projects {
     projectsFile: string,
     private readonly fallbackCwd: string,
     private readonly roots: string[] = [],
+    private readonly maxDepth = 6,
   ) {
     if (existsSync(projectsFile)) {
       const parsed = JSON.parse(readFileSync(projectsFile, "utf8")) as ProjectsFile;
@@ -83,22 +94,14 @@ export class Projects {
     if (!forceRefresh && Date.now() - this.discoveredAt < DISCOVERY_TTL_MS) {
       return this.discovered;
     }
-    const found: Project[] = [];
+    const byCwd = new Map<string, Project>();
+    const budget = { left: SCAN_BUDGET };
     for (const root of this.roots) {
-      let entries: string[] = [];
-      try {
-        entries = readdirSync(root);
-      } catch {
-        continue;
-      }
-      for (const entry of entries) {
-        if (entry.startsWith(".") || entry === "node_modules") continue;
-        const dir = join(root, entry);
-        if (!isDir(dir) || !looksLikeProject(dir)) continue;
-        found.push({ name: entry, cwd: dir, instructions: readInstructions(dir), source: "discovered" });
+      for (const p of scanRoot(root, this.maxDepth, budget)) {
+        byCwd.set(p.cwd, p);
       }
     }
-    this.discovered = found.sort((a, b) => a.name.localeCompare(b.name));
+    this.discovered = [...byCwd.values()].sort((a, b) => a.name.localeCompare(b.name));
     this.discoveredAt = Date.now();
     return this.discovered;
   }
@@ -113,39 +116,34 @@ export class Projects {
   }
 
   /**
-   * Resolve a chat's stored selection. If a concrete cwd was stored (an ad-hoc
-   * or discovered project), trust it; otherwise fall back to the default.
-   */
-  fromRecord(name: string | undefined, cwd: string | undefined, instructions?: string): Project {
-    if (cwd && isDir(cwd)) {
-      return { name: name ?? basename(cwd), cwd, instructions, source: "path" };
-    }
-    if (name && this.configured.has(name)) return this.configured.get(name)!;
-    return this.default();
-  }
-
-  /**
-   * Find candidate projects for a user query. Tries, in order: a literal
-   * directory path, an exact name match, then a substring match across
-   * configured + discovered projects. Returns all candidates so the caller can
-   * disambiguate when there's more than one.
+   * Find candidate projects for a user query. Order:
+   *  1. a literal directory path,
+   *  2. exact (separator-insensitive) name match,
+   *  3. name substring match,
+   *  4. token match against name + path ("dafne api proyectos").
+   * Returns all candidates so the caller can disambiguate.
    */
   resolve(query: string): Project[] {
     const q = query.trim();
     if (!q) return [];
 
-    // 1. Direct path (absolute, ~, ./, or relative to a root / fallback cwd).
     const asPath = this.tryPath(q);
     if (asPath) return [asPath];
 
-    // 2 & 3. Name match across configured + discovered.
-    const all = [...this.configuredProjects(), ...this.discoveredProjects()];
-    const lower = q.toLowerCase();
+    const all = dedupe([...this.configuredProjects(), ...this.discoveredProjects()]);
+    const nq = normalize(q);
 
-    const exact = all.filter((p) => p.name.toLowerCase() === lower);
-    if (exact.length > 0) return dedupe(exact);
+    const exact = all.filter((p) => normalize(p.name) === nq);
+    if (exact.length > 0) return exact;
 
-    return dedupe(all.filter((p) => p.name.toLowerCase().includes(lower)));
+    const substr = all.filter((p) => normalize(p.name).includes(nq));
+    if (substr.length > 0) return substr;
+
+    const tokens = q.toLowerCase().split(/[\s._/-]+/).filter(Boolean);
+    return all.filter((p) => {
+      const hay = `${p.name} ${p.cwd}`.toLowerCase();
+      return tokens.every((t) => hay.includes(t));
+    });
   }
 
   private tryPath(q: string): Project | null {
@@ -162,6 +160,42 @@ export class Projects {
     }
     return null;
   }
+}
+
+/** Recursively scan a root for project directories, bounded by depth + budget. */
+function scanRoot(root: string, maxDepth: number, budget: { left: number }): Project[] {
+  const out: Project[] = [];
+
+  const walk = (dir: string, depth: number): void => {
+    if (depth > maxDepth || budget.left <= 0) return;
+    let entries: import("node:fs").Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (budget.left-- <= 0) return;
+      if (!entry.isDirectory()) continue;
+      const name = entry.name;
+      if (name.startsWith(".") || SKIP_DIRS.has(name)) continue;
+      const full = join(dir, name);
+      if (looksLikeProject(full)) {
+        // It's a project — record it and don't descend into its internals.
+        out.push({ name, cwd: full, instructions: readInstructions(full), source: "discovered" });
+        continue;
+      }
+      walk(full, depth + 1);
+    }
+  };
+
+  walk(root, 0);
+  return out;
+}
+
+/** Lowercase and strip separators so "dafne api" == "dafne-api" == "dafneapi". */
+function normalize(s: string): string {
+  return s.toLowerCase().replace(/[\s._-]+/g, "");
 }
 
 function dedupe(projects: Project[]): Project[] {

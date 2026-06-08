@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { AresConfig } from "./config.js";
 import { runAgent } from "./agent.js";
 import { Store } from "./store.js";
-import { Projects } from "./projects.js";
+import { Projects, type Project } from "./projects.js";
 import { Scheduler } from "./scheduler.js";
 import { toTelegramHtml } from "./format.js";
 
@@ -20,17 +20,18 @@ const MODEL_ALIASES: Record<string, string> = {
 
 export function createBot(config: AresConfig, store: Store): Bot {
   const bot = new Bot(config.telegramBotToken);
-  const projects = new Projects(config.projectsFile, config.workspaceDir, config.projectRoots);
+  const projects = new Projects(config.projectsFile, config.workspaceDir, config.projectRoots, config.projectDepth);
   const busy = new Set<number>();
 
   const scheduler = new Scheduler(store, async (record) => {
     await bot.api
       .sendMessage(record.chatId, `⏰ Running scheduled task: ${record.prompt}`)
       .catch(() => {});
-    await processPrompt(record.chatId, record.prompt, record.project);
+    const target = record.project ? projects.resolve(record.project)[0] : undefined;
+    await processPrompt(record.chatId, record.prompt, target);
   });
 
-  /** Switch a chat to a resolved project and start a fresh session. */
+  /** Resolve a query, switch the chat to it, and resume that project's thread. */
   function switchProject(chatId: number, query: string): string {
     const matches = projects.resolve(query);
     if (matches.length === 0) {
@@ -41,14 +42,11 @@ export function createBot(config: AresConfig, store: Store): Bot {
       return `Multiple matches for "${query}":\n${list}\n\nBe more specific or paste the full path.`;
     }
     const p = matches[0];
-    // Switching the working tree means context differs, so reset the session.
-    store.updateChat(chatId, {
-      projectName: p.name,
-      projectCwd: p.cwd,
-      projectInstructions: p.instructions,
-      sessionId: undefined,
-    });
-    return `📁 Opened "${p.name}" (${p.cwd}).\n🧹 Started a fresh conversation.`;
+    const hadSession = !!store.getChat(chatId).projects[p.cwd]?.sessionId;
+    store.upsertProject(chatId, { name: p.name, cwd: p.cwd, instructions: p.instructions }, { setCurrent: true });
+    return hadSession
+      ? `📁 Opened "${p.name}" (${p.cwd}).\n↩️ Resuming this project's conversation.`
+      : `📁 Opened "${p.name}" (${p.cwd}).\n🆕 New conversation for this project.`;
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -66,40 +64,44 @@ export function createBot(config: AresConfig, store: Store): Bot {
   // ── Commands ─────────────────────────────────────────────────────────────────
   bot.command("start", (ctx) =>
     ctx.reply(
-      "👋 Ares is online. Send a task and I'll work on it in the selected project.\n\n" +
-        "/new — fresh conversation\n" +
-        "/status — current model/project/session\n" +
-        "/projects — list configured + discovered projects\n" +
-        "/open <name|path> — open a session in a project (searches your dirs)\n" +
+      "👋 Ares is online. Send a task and I'll work on it in the current project.\n\n" +
+        "/open <name|path> — open a project (I search your folders) and switch to its conversation\n" +
         "/find <text> — search your local projects\n" +
+        "/projects — configured + discovered projects\n" +
+        "/sessions — your per-project conversations\n" +
         "/rescan — refresh discovered projects\n" +
+        "/new — fresh conversation for the current project\n" +
+        "/status — current model/project/session\n" +
         "/model <opus|sonnet|haiku|id> — set the model\n" +
-        '/schedule <m h dom mon dow> <prompt> — recurring task\n' +
+        "/schedule <m h dom mon dow> <prompt> — recurring task\n" +
         "/schedules — list scheduled tasks\n" +
         "/unschedule <id> — remove one",
     ),
   );
 
   bot.command("new", (ctx) => {
-    if (ctx.chat) store.updateChat(ctx.chat.id, { sessionId: undefined });
-    return ctx.reply("🧹 Started a fresh conversation.");
+    if (!ctx.chat) return;
+    const current = store.current(ctx.chat.id);
+    if (!current) return ctx.reply("Open a project first with /open <name>.");
+    store.clearSession(ctx.chat.id, current.cwd);
+    return ctx.reply(`🧹 Fresh conversation for "${current.name}".`);
   });
 
   bot.command("status", (ctx) => {
     if (!ctx.chat) return;
     const rec = store.getChat(ctx.chat.id);
-    const project = projects.fromRecord(rec.projectName, rec.projectCwd, rec.projectInstructions);
+    const current = store.current(ctx.chat.id);
     return ctx.reply(
       `Model: ${rec.model ?? config.model}\n` +
-        `Project: ${project.name} (${project.cwd})\n` +
-        `Session: ${rec.sessionId ?? "(none yet)"}`,
+        `Project: ${current ? `${current.name} (${current.cwd})` : "(none — use /open)"}\n` +
+        `Session: ${current?.sessionId ?? "(none yet)"}\n` +
+        `Conversations: ${store.listProjects(ctx.chat.id).length}`,
     );
   });
 
   bot.command("projects", (ctx) => {
     if (!ctx.chat) return;
-    const rec = store.getChat(ctx.chat.id);
-    const currentCwd = projects.fromRecord(rec.projectName, rec.projectCwd, rec.projectInstructions).cwd;
+    const currentCwd = store.current(ctx.chat.id)?.cwd;
     const mark = (cwd: string) => (cwd === currentCwd ? "▸" : " ");
 
     const configured = projects.configuredProjects();
@@ -109,12 +111,25 @@ export function createBot(config: AresConfig, store: Store): Bot {
     if (discovered.length > 0) {
       const shown = discovered.slice(0, 30).map((p) => `${mark(p.cwd)} ${p.name} — ${p.cwd}`).join("\n");
       const more = discovered.length > 30 ? `\n  …and ${discovered.length - 30} more (use /find)` : "";
-      msg += `\n\nDiscovered in your dirs:\n${shown}${more}`;
+      msg += `\n\nDiscovered in your folders:\n${shown}${more}`;
     } else {
-      msg += "\n\n(No auto-discovered projects. Set ARES_PROJECTS_ROOTS to your dev folders.)";
+      msg += "\n\n(No projects discovered yet — try /rescan.)";
     }
     msg += "\n\nOpen one with /open <name|path>.";
     return ctx.reply(msg);
+  });
+
+  bot.command("sessions", (ctx) => {
+    if (!ctx.chat) return;
+    const list = store.listProjects(ctx.chat.id);
+    if (list.length === 0) return ctx.reply("No conversations yet. Open a project with /open <name>.");
+    const currentCwd = store.current(ctx.chat.id)?.cwd;
+    const lines = list.map((s) => {
+      const mark = s.cwd === currentCwd ? "▸" : " ";
+      const state = s.sessionId ? "active" : "fresh";
+      return `${mark} ${s.name} — ${state} · ${new Date(s.updatedAt).toLocaleString()}\n     ${s.cwd}`;
+    });
+    return ctx.reply(`Your conversations:\n${lines.join("\n")}\n\nSwitch with /open <name>.`);
   });
 
   // /open and /project are synonyms.
@@ -139,7 +154,7 @@ export function createBot(config: AresConfig, store: Store): Bot {
 
   bot.command("rescan", (ctx) => {
     const n = projects.discoveredProjects(true).length;
-    return ctx.reply(`🔄 Rescanned. Found ${n} project(s) in your dirs. See /projects.`);
+    return ctx.reply(`🔄 Rescanned your folders. Found ${n} project(s). See /projects.`);
   });
 
   bot.command("model", (ctx) => {
@@ -147,12 +162,10 @@ export function createBot(config: AresConfig, store: Store): Bot {
     const arg = ctx.match.trim().toLowerCase();
     if (!arg) {
       const rec = store.getChat(ctx.chat.id);
-      return ctx.reply(
-        `Model: ${rec.model ?? config.model}\nSet with /model <opus|sonnet|haiku|id>.`,
-      );
+      return ctx.reply(`Model: ${rec.model ?? config.model}\nSet with /model <opus|sonnet|haiku|id>.`);
     }
     const model = MODEL_ALIASES[arg] ?? ctx.match.trim();
-    store.updateChat(ctx.chat.id, { model });
+    store.setModel(ctx.chat.id, model);
     return ctx.reply(`🧠 Model set to ${model}.`);
   });
 
@@ -165,7 +178,7 @@ export function createBot(config: AresConfig, store: Store): Bot {
     const cron = parts.slice(0, 5).join(" ");
     const prompt = parts.slice(5).join(" ");
     if (!Scheduler.isValidCron(cron)) return ctx.reply(`Invalid cron expression: "${cron}".`);
-    const rec = scheduler.add(ctx.chat.id, cron, prompt, store.getChat(ctx.chat.id).projectName);
+    const rec = scheduler.add(ctx.chat.id, cron, prompt, store.current(ctx.chat.id)?.name);
     return ctx.reply(`⏰ Scheduled [${rec.id}] "${cron}" → ${prompt}`);
   });
 
@@ -185,15 +198,19 @@ export function createBot(config: AresConfig, store: Store): Bot {
     return ctx.reply(scheduler.remove(id) ? `🗑️ Removed ${id}.` : `No schedule with id ${id}.`);
   });
 
-  // ── Plain text → run the manager agent ────────────────────────────────────────
+  // ── Plain text → run the manager agent in the current project ─────────────────
   bot.on("message:text", async (ctx) => {
     const text = ctx.message.text;
     if (text.startsWith("/")) return; // unknown command, ignore
     await processPrompt(ctx.chat.id, text);
   });
 
-  /** Core path: run the manager agent for a chat and render the result. */
-  async function processPrompt(chatId: number, prompt: string, projectOverride?: string): Promise<void> {
+  /**
+   * Core path: run the manager agent for a chat and render the result.
+   * If `project` is given (scheduled task), run in that project's thread without
+   * changing the chat's current selection; otherwise use the current project.
+   */
+  async function processPrompt(chatId: number, prompt: string, project?: Project): Promise<void> {
     if (busy.has(chatId)) {
       await bot.api.sendMessage(chatId, "⏳ Still working on the previous task — one moment.").catch(() => {});
       return;
@@ -201,12 +218,10 @@ export function createBot(config: AresConfig, store: Store): Bot {
     busy.add(chatId);
 
     const rec = store.getChat(chatId);
-    // A scheduled task may target a specific project by name; otherwise use the
-    // chat's currently selected (and persisted) project.
-    const overrideMatch = projectOverride ? projects.resolve(projectOverride)[0] : undefined;
-    const project =
-      overrideMatch ??
-      projects.fromRecord(rec.projectName, rec.projectCwd, rec.projectInstructions);
+    const session = project
+      ? store.upsertProject(chatId, project, { setCurrent: false })
+      : (store.current(chatId) ?? store.upsertProject(chatId, projects.default(), { setCurrent: true }));
+
     const outputDir = join(config.dataDir, "runs", `${chatId}-${Date.now()}`);
     mkdirSync(outputDir, { recursive: true });
 
@@ -217,10 +232,10 @@ export function createBot(config: AresConfig, store: Store): Bot {
     try {
       for await (const event of runAgent(config, {
         prompt,
-        resumeSessionId: rec.sessionId,
-        cwd: project.cwd,
+        resumeSessionId: session.sessionId,
+        cwd: session.cwd,
         model: rec.model,
-        projectInstructions: project.instructions,
+        projectInstructions: session.instructions,
         outputDir,
       })) {
         if (event.type === "status") {
@@ -228,7 +243,7 @@ export function createBot(config: AresConfig, store: Store): Bot {
         } else if (event.type === "text") {
           renderer.appendText(event.text);
         } else if (event.type === "result") {
-          if (event.sessionId) store.updateChat(chatId, { sessionId: event.sessionId });
+          if (event.sessionId) store.setSession(chatId, session.cwd, event.sessionId);
           await renderer.finish(event.isError, event.text);
         }
       }
@@ -261,11 +276,12 @@ export function createBot(config: AresConfig, store: Store): Bot {
   scheduler.start();
   void bot.api
     .setMyCommands([
-      { command: "new", description: "Start a fresh conversation" },
-      { command: "status", description: "Show model/project/session" },
-      { command: "projects", description: "List configured + discovered projects" },
-      { command: "open", description: "Open a session in a project (searches your dirs)" },
+      { command: "open", description: "Open a project (searches your folders)" },
       { command: "find", description: "Search your local projects" },
+      { command: "projects", description: "List configured + discovered projects" },
+      { command: "sessions", description: "Your per-project conversations" },
+      { command: "new", description: "Fresh conversation for the current project" },
+      { command: "status", description: "Show model/project/session" },
       { command: "model", description: "Set the model" },
       { command: "schedules", description: "List scheduled tasks" },
     ])
@@ -323,7 +339,6 @@ class Renderer {
     if (view === this.lastRendered) return;
     this.lastEdit = Date.now();
     this.lastRendered = view;
-    // Progress is plain text — partial markdown would produce invalid HTML.
     await this.bot.api.editMessageText(this.chatId, this.messageId, view).catch(() => {});
   }
 
@@ -341,16 +356,11 @@ class Renderer {
     }
   }
 
-  /** Edit the live message with HTML; fall back to plain text on parse error. */
   private async editOrSend(text: string, messageId: number): Promise<void> {
     try {
-      await this.bot.api.editMessageText(this.chatId, messageId, toTelegramHtml(text), {
-        parse_mode: "HTML",
-      });
+      await this.bot.api.editMessageText(this.chatId, messageId, toTelegramHtml(text), { parse_mode: "HTML" });
     } catch {
-      await this.bot.api
-        .editMessageText(this.chatId, messageId, text)
-        .catch(() => this.send(text));
+      await this.bot.api.editMessageText(this.chatId, messageId, text).catch(() => this.send(text));
     }
   }
 

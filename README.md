@@ -16,9 +16,13 @@ a private, developer-only take on the OpenClaw idea: for now it speaks only to
   live progress updates, plus the Agent SDK's **automatic context compaction**.
 - 📁 **Per-project workspaces & instructions** — switch the working tree and
   system prompt per chat (`ares.projects.json`).
-- 🔍 **Local project discovery** — Ares scans your dev folders so you can
-  `/open <name>` and it finds the project in your directories (no pre-config
-  needed). Picks up `CLAUDE.md`/`.ares.md` as that project's instructions.
+- 🔍 **Zero-config project discovery** — Ares searches your home directory
+  recursively, so you just say `/open dafne-api` (or `/open dafne api`) and it
+  finds `~/proyectos/dafne-api` on its own. Fuzzy name matching; picks up
+  `CLAUDE.md`/`.ares.md` as that project's instructions.
+- 🧵 **One conversation per project** — each project keeps its own thread.
+  `/open dafne-api` and `/open dafne-admin` are independent and resume right
+  where you left them; `/sessions` lists them all.
 - 🧠 **Model picker** per chat (`/model opus|sonnet|haiku|<id>`).
 - 📸 **Playwright screenshots** — the agent can capture a URL after UI changes
   and the image is delivered to you automatically.
@@ -30,11 +34,12 @@ a private, developer-only take on the OpenClaw idea: for now it speaks only to
 
 | Command | What it does |
 | --- | --- |
-| `/new` | Start a fresh conversation (drops the session) |
+| `/new` | Start a fresh conversation for the **current** project |
 | `/status` | Show current model, project, and session |
 | `/projects` | List configured **and** auto-discovered projects |
-| `/open <name\|path>` | Open a session in a project (searches your dirs); `/project` is a synonym |
+| `/open <name\|path>` | Open a project (Ares searches your folders) and switch to its conversation; `/project` is a synonym |
 | `/find <text>` | Search your local projects |
+| `/sessions` | List your per-project conversations (which is active, last used) |
 | `/rescan` | Refresh the discovered-projects list |
 | `/model <opus\|sonnet\|haiku\|id>` | Set the model for this chat |
 | `/schedule <m h dom mon dow> <prompt>` | Add a recurring task (cron) |
@@ -67,8 +72,9 @@ Fill in `.env`:
 - `ANTHROPIC_API_KEY` — for the Claude Agent SDK.
 - `ARES_MODEL` — default model id, e.g. `claude-opus-4-8` or `claude-sonnet-4-6`.
 - `ARES_WORKSPACE_DIR` — the directory the agent works in (defaults to CWD).
-- `ARES_PROJECTS_ROOTS` — comma-separated dev folders to auto-discover projects
-  under (e.g. `~/dev,~/code`). If unset, Ares probes common dev folders.
+- `ARES_PROJECTS_ROOTS` — **optional**. Folders to search for your projects. Leave
+  it unset and Ares searches your whole home directory recursively (zero-config).
+  Set it only to narrow/speed up the search, e.g. `~/proyectos,~/work`.
 
 ## Run
 
@@ -80,21 +86,26 @@ npm run build && npm start
 
 Then message your bot on Telegram and give it a task.
 
-## Opening a project by name
+## Opening projects & per-project conversations
 
-Point `ARES_PROJECTS_ROOTS` at the folders where your repos live (or rely on the
-defaults). Then from Telegram:
+You don't define projects anywhere — just tell Ares which one:
 
 ```
-/projects            → see configured + discovered projects
-/open my-web-app     → finds the repo in your dirs and opens a session there
-/open ~/work/api     → or just give a path
-/find web            → search if you don't remember the exact name
+/open dafne-api      → Ares finds ~/proyectos/dafne-api and switches to it
+/open dafne api      → fuzzy: spaces/hyphens/underscores are equivalent
+/open ~/work/api     → or give a path directly
+/find dafne          → search if you don't remember the exact name
+/projects            → everything discovered (+ configured)
 ```
 
-A directory is discovered when it contains a project marker (`.git`,
+A directory counts as a project when it contains a marker (`.git`,
 `package.json`, `pyproject.toml`, `go.mod`, …). If it has a `CLAUDE.md` or
 `.ares.md`, that file becomes the project's system instructions automatically.
+
+**Each project keeps its own conversation.** `/open dafne-api` and
+`/open dafne-admin` are separate threads — switch between them and each resumes
+where you left off, with its own context. `/sessions` lists them; `/new` starts
+a fresh thread for the project you're currently in (the others are untouched).
 
 ## Can the bot message me first?
 

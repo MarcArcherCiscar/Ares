@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "croner": "^8.1.0",
     "dotenv": "^16.4.5",
     "grammy": "^1.30.0",
+    "playwright": "^1.47.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

@@ -1,9 +1,11 @@
 import { loadConfig } from "./config.js";
 import { createBot } from "./telegram.js";
+import { Store } from "./store.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  const bot = createBot(config);
+  const store = new Store(config.dataDir);
+  const bot = createBot(config, store);
 
   // Graceful shutdown
   const stop = () => {

@@ -5,26 +5,43 @@ dispatches subagents to do real engineering work, for developers. Think of it as
 a private, developer-only take on the OpenClaw idea: for now it speaks only to
 **Claude Code** (via the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript)).
 
-## What it does today (milestone 1)
+## What it does
 
 - 🤖 Connects a Telegram bot to a Claude **manager agent** (the Agent SDK, the
   engine behind Claude Code).
-- 🧵 The manager can **dispatch subagents** (via the built-in Task tool) and use
+- 🧵 The manager **dispatches subagents** (via the built-in Task tool) and uses
   the full Read/Write/Edit/Bash/Grep/Glob tool surface in a project workspace.
 - 🔒 **Whitelisted users only** — it ignores anyone not in your allowlist.
-- 💬 **Continuous conversation per chat** with live progress updates, and the
-  Agent SDK's **automatic context compaction** for long sessions.
-- 🧹 `/new` to start fresh, `/status` to inspect the current session.
+- 💬 **Continuous, persistent conversation per chat** (survives restarts) with
+  live progress updates, plus the Agent SDK's **automatic context compaction**.
+- 📁 **Per-project workspaces & instructions** — switch the working tree and
+  system prompt per chat (`ares.projects.json`).
+- 🧠 **Model picker** per chat (`/model opus|sonnet|haiku|<id>`).
+- 📸 **Playwright screenshots** — the agent can capture a URL after UI changes
+  and the image is delivered to you automatically.
+- ⏰ **Scheduled / cron tasks** that run and report back to the chat.
+- 🐙 **GitHub**: the agent can use the `git`/`gh` CLIs via Bash (PRs, issues, CI).
+- ✨ Claude's markdown is rendered as **Telegram HTML** (code blocks, bold, …).
 
-## Roadmap (from the original spec)
+## Commands
 
-- [ ] Per-project system instructions and project switching
-- [ ] Scheduled / cron runs that report back to Telegram
-- [ ] 📸 Playwright screenshots of the UI after changes (as an SDK tool)
-- [ ] GitHub integration (PRs, CI) surfaced in chat
-- [ ] Model picker (Opus / Sonnet) per task
-- [ ] Persistent session storage (currently in-memory)
-- [ ] Markdown → Telegram formatting (code blocks, etc.)
+| Command | What it does |
+| --- | --- |
+| `/new` | Start a fresh conversation (drops the session) |
+| `/status` | Show current model, project, and session |
+| `/projects` | List configured projects |
+| `/project <name>` | Switch project (starts a fresh conversation) |
+| `/model <opus\|sonnet\|haiku\|id>` | Set the model for this chat |
+| `/schedule <m h dom mon dow> <prompt>` | Add a recurring task (cron) |
+| `/schedules` | List scheduled tasks with next run time |
+| `/unschedule <id>` | Remove a scheduled task |
+
+## Roadmap
+
+- [ ] Markdown → Telegram: tables and nested lists
+- [ ] Interactive permission prompts (inline-keyboard tool approval)
+- [ ] Multiple workspaces per user / team sharing
+- [ ] First-class GitHub MCP integration (beyond the `gh` CLI)
 
 ## Setup
 
@@ -32,7 +49,9 @@ Requires Node.js ≥ 20.
 
 ```bash
 npm install
-cp .env.example .env   # then fill in the values
+cp .env.example .env                       # then fill in the values
+cp ares.projects.example.json ares.projects.json   # optional: define projects
+npx playwright install chromium            # optional: enable screenshots
 ```
 
 Fill in `.env`:
@@ -69,13 +88,24 @@ shell commands and modify files** in `ARES_WORKSPACE_DIR` autonomously.
 ```
 Telegram ──► src/telegram.ts ──► src/agent.ts ──► Claude Agent SDK (query)
              (bot, auth,          (manager prompt,    │
-              live rendering)      event mapping)     └─► subagents, tools, MCP
+              commands,           event mapping,      ├─► subagents, tools
+              live rendering,     screenshot MCP)     └─► mcp__ares__screenshot
+              photo sending)                              (Playwright)
+                  │
+                  ├── src/store.ts      (JSON-persisted sessions + schedules)
+                  ├── src/projects.ts   (named workspaces + per-project prompts)
+                  ├── src/scheduler.ts  (cron tasks via croner)
+                  └── src/format.ts     (Markdown → Telegram HTML)
 ```
 
-- `src/config.ts` — env loading + the user allowlist.
-- `src/agent.ts` — wraps the Agent SDK `query()` and normalizes its message
-  stream into small UI events (`status` / `text` / `result`). Holds the manager
-  system-prompt framing.
-- `src/telegram.ts` — the grammY bot: auth middleware, per-chat session state,
-  and a throttled live-message renderer.
+- `src/config.ts` — env loading, user allowlist, paths.
+- `src/agent.ts` — wraps the Agent SDK `query()`, normalizes its message stream
+  into small UI events (`status`/`text`/`result`), holds the manager prompt, and
+  registers the screenshot MCP server.
+- `src/tools/screenshot.ts` — in-process MCP tool that captures a URL with
+  Playwright; images are written to a per-run dir and sent by the bot.
+- `src/telegram.ts` — grammY bot: auth, commands, per-chat state, throttled live
+  renderer, screenshot delivery.
+- `src/store.ts` / `src/projects.ts` / `src/scheduler.ts` / `src/format.ts` —
+  persistence, projects, cron scheduling, and output formatting.
 - `src/index.ts` — entry point and startup/shutdown.

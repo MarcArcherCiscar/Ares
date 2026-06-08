@@ -26,8 +26,13 @@ export interface AresConfig {
   allowedUserIds: Set<number>;
   anthropicApiKey: string;
   model: string;
+  /** Fallback working directory when no project file/selection applies. */
   workspaceDir: string;
   maxTurns: number;
+  /** Directory for persisted state and per-run screenshot output. */
+  dataDir: string;
+  /** Path to the projects definition file. */
+  projectsFile: string;
 }
 
 export function loadConfig(): AresConfig {
@@ -49,5 +54,7 @@ export function loadConfig(): AresConfig {
     model: process.env.ARES_MODEL?.trim() || "claude-opus-4-8",
     workspaceDir: resolve(process.env.ARES_WORKSPACE_DIR?.trim() || process.cwd()),
     maxTurns: Number(process.env.ARES_MAX_TURNS) || 40,
+    dataDir: resolve(process.env.ARES_DATA_DIR?.trim() || "data"),
+    projectsFile: resolve(process.env.ARES_PROJECTS_FILE?.trim() || "ares.projects.json"),
   };
 }

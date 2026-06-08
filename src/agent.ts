@@ -1,5 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { AresConfig } from "./config.js";
+import { createScreenshotServer } from "./tools/screenshot.js";
 
 /**
  * How the manager agent should behave. The `claude_code` preset already gives it
@@ -14,7 +15,10 @@ You are talking to a developer through a chat bridge, so:
   instead of doing everything inline. Summarize what each subagent found.
 - When you change files or run commands, say what you did in one or two lines.
   Do not paste long diffs or full file contents unless explicitly asked.
-- If a request is ambiguous, ask one focused question rather than guessing.`;
+- If a request is ambiguous, ask one focused question rather than guessing.
+- After making UI changes, use the screenshot tool (mcp__ares__screenshot) to
+  capture the result — it is delivered to the user automatically.
+- You may use the gh and git CLIs via Bash for GitHub work (PRs, issues, CI).`;
 
 export interface AgentEventStatus {
   type: "status";
@@ -38,6 +42,12 @@ export interface RunOptions {
   resumeSessionId?: string;
   /** Optional per-project system prompt appended to the manager framing. */
   projectInstructions?: string;
+  /** Working directory for this run (the selected project's cwd). */
+  cwd: string;
+  /** Model override for this run (falls back to the configured default). */
+  model?: string;
+  /** Directory screenshots are written to (sent to the user after the run). */
+  outputDir: string;
 }
 
 /**
@@ -56,16 +66,21 @@ export async function* runAgent(
 
   let sessionId: string | undefined = opts.resumeSessionId;
 
+  const screenshotServer = createScreenshotServer(opts.outputDir);
+
   const stream = query({
     prompt: opts.prompt,
     options: {
-      model: config.model,
-      cwd: config.workspaceDir,
+      model: opts.model ?? config.model,
+      cwd: opts.cwd,
       maxTurns: config.maxTurns,
       systemPrompt: { type: "preset", preset: "claude_code", append },
       // Telegram cannot host interactive permission prompts, so the agent runs
       // autonomously. Safe only because users are whitelisted in config.
       permissionMode: "bypassPermissions",
+      mcpServers: {
+        ares: { type: "sdk", name: "ares", instance: screenshotServer.instance },
+      },
       ...(opts.resumeSessionId ? { resume: opts.resumeSessionId } : {}),
     },
   });
@@ -125,8 +140,10 @@ function describeToolUse(name: string, input: unknown): string {
       return `🔎 Searching: ${truncate(str(i.pattern) ?? "", 60)}`;
     case "Glob":
       return `🗂️ Listing ${str(i.pattern) ?? "files"}`;
+    case "mcp__ares__screenshot":
+      return `📸 Screenshotting ${str(i.url) ?? "page"}`;
     default:
-      return `🔧 ${name}`;
+      return `🔧 ${name.replace(/^mcp__\w+__/, "")}`;
   }
 }
 

@@ -1,0 +1,13 @@
+{
+  "default": "ares",
+  "projects": {
+    "ares": {
+      "cwd": ".",
+      "instructions": "This is the Ares bot itself (TypeScript, Node, grammY + Claude Agent SDK). Prefer small, well-typed changes and run `npm run typecheck` before claiming done."
+    },
+    "web": {
+      "cwd": "../my-web-app",
+      "instructions": "Next.js app. Dev server runs on http://localhost:3000. After UI changes, screenshot the affected page so I can see it."
+    }
+  }
+}

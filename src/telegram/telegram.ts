@@ -2,7 +2,7 @@ import { Bot, InputFile, type CommandContext, type Context } from "grammy";
 import { mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { AresConfig } from "./config.js";
-import { runAgent } from "./agent.js";
+import { runAgent } from "../core/agent.js";
 import { Store } from "./store.js";
 import { Projects, type Project } from "./projects.js";
 import { Scheduler } from "./scheduler.js";

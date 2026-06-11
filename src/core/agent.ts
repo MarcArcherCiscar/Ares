@@ -1,6 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { AresConfig } from "./config.js";
-import { createScreenshotServer } from "./tools/screenshot.js";
+import type { AresConfig } from "../telegram/config.js";
+import { createScreenshotServer } from "./toolbelt/screenshot.js";
 
 /**
  * How the manager agent should behave. The `claude_code` preset already gives it

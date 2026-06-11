@@ -230,13 +230,15 @@ export function createBot(config: AresConfig, store: Store): Bot {
     const renderer = new Renderer(bot, chatId, live.message_id);
 
     try {
-      for await (const event of runAgent(config, {
+      for await (const event of runAgent({
         prompt,
         resumeSessionId: session.sessionId,
         cwd: session.cwd,
-        model: rec.model,
+        model: rec.model ?? config.model,
         projectInstructions: session.instructions,
         outputDir,
+        permissionMode: "bypassPermissions",
+        maxTurns: config.maxTurns,
       })) {
         if (event.type === "status") {
           renderer.setStatus(event.text);

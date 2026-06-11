@@ -1,84 +1,91 @@
+// src/core/agent.ts
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { AresConfig } from "../telegram/config.js";
+import { loadUserConfig } from "./config.js";
+import { loadSoul } from "./soul.js";
+import { Memory } from "./memory.js";
 import { buildToolbelt } from "./toolbelt/index.js";
 
-/**
- * How the manager agent should behave. The `claude_code` preset already gives it
- * the full tool surface (Read/Write/Edit/Bash/Grep/Glob + the Task tool for
- * spawning subagents). This append frames it as the "gerente" from the spec.
- */
-const MANAGER_PROMPT_APPEND = `You are Ares, a senior engineering "manager" agent operating over Telegram.
+export type PermissionResult =
+  | { behavior: "allow"; updatedInput?: Record<string, unknown> }
+  | { behavior: "deny"; message: string };
 
-You are talking to a developer through a chat bridge, so:
-- Keep replies tight and skimmable. This is a phone screen, not a terminal.
-- For non-trivial or parallelizable work, dispatch subagents with the Task tool
-  instead of doing everything inline. Summarize what each subagent found.
-- When you change files or run commands, say what you did in one or two lines.
-  Do not paste long diffs or full file contents unless explicitly asked.
-- If a request is ambiguous, ask one focused question rather than guessing.
-- After making UI changes, use the screenshot tool (mcp__ares__screenshot) to
-  capture the result — it is delivered to the user automatically.
-- You may use the gh and git CLIs via Bash for GitHub work (PRs, issues, CI).`;
+/** Callback de permisos que cada canal implementa a su manera (CLI: prompt; Telegram: n/a — bypass). */
+export type PermissionCallback = (
+  toolName: string,
+  input: Record<string, unknown>,
+) => Promise<PermissionResult>;
 
-export interface AgentEventStatus {
-  type: "status";
-  text: string;
-}
-export interface AgentEventText {
-  type: "text";
-  text: string;
-}
-export interface AgentEventResult {
-  type: "result";
-  sessionId: string | undefined;
-  isError: boolean;
-  text: string;
-}
-export type AgentEvent = AgentEventStatus | AgentEventText | AgentEventResult;
+export type AgentEvent =
+  | { type: "status"; text: string } // "usando tool X" — para indicadores de progreso
+  | { type: "delta"; text: string } // texto incremental (UIs en vivo: CLI)
+  | { type: "text"; text: string } // bloque de texto completo (Telegram)
+  | { type: "result"; sessionId: string | undefined; isError: boolean; text: string };
 
 export interface RunOptions {
   prompt: string;
-  /** Resume a prior Agent SDK session to keep conversation context. */
-  resumeSessionId?: string;
-  /** Optional per-project system prompt appended to the manager framing. */
-  projectInstructions?: string;
-  /** Working directory for this run (the selected project's cwd). */
+  /** Working directory del agente (el repo/proyecto). */
   cwd: string;
-  /** Model override for this run (falls back to the configured default). */
+  /** Resume de una sesión previa del SDK. */
+  resumeSessionId?: string;
+  /** Override puntual del modelo; por defecto, la cadena de ~/.ares/config.json. */
   model?: string;
-  /** Directory screenshots are written to (sent to the user after the run). */
+  /** Instrucciones del proyecto (CLAUDE.md / .ares.md), van tras el alma. */
+  projectInstructions?: string;
+  /** Instrucciones específicas del canal (p. ej. "esto es Telegram, sé breve"). */
+  channelInstructions?: string;
+  /** Directorio donde las tools dejan artefactos (screenshots…). */
   outputDir: string;
+  /** 'bypassPermissions' para canales sin UI de confirmación (Telegram, headless). */
+  permissionMode?: "default" | "acceptEdits" | "bypassPermissions";
+  /** Confirmación interactiva de tools (CLI). Si se pasa, permissionMode debe permitir preguntar. */
+  canUseTool?: PermissionCallback;
+  maxTurns?: number;
 }
 
 /**
- * Run one turn of the manager agent and stream normalized events.
- * Translates the Agent SDK's raw message stream into a small, UI-friendly set
- * of events the Telegram layer can render.
+ * Única puerta al Agent SDK. Compone alma + memoria + toolbelt + modelo y
+ * traduce el stream crudo del SDK a eventos que cualquier canal renderiza.
  */
-export async function* runAgent(
-  config: AresConfig,
-  opts: RunOptions,
-): AsyncGenerator<AgentEvent> {
-  let append = MANAGER_PROMPT_APPEND;
-  if (opts.projectInstructions) {
-    append += `\n\n# Project instructions\n${opts.projectInstructions}`;
-  }
+export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
+  const cfg = loadUserConfig();
+  const memoryIndex = new Memory().index();
+
+  const append = [
+    loadSoul(),
+    memoryIndex
+      ? `# Memoria de Marc\n\nÍndice de recuerdos (lee el archivo en ~/.ares/memory/ si necesitas el detalle):\n\n${memoryIndex}`
+      : "# Memoria de Marc\n\n(Aún sin recuerdos. Usa mcp__ares__remember cuando aprendas algo duradero.)",
+    opts.channelInstructions ? `# Canal\n\n${opts.channelInstructions}` : "",
+    opts.projectInstructions ? `# Instrucciones del proyecto\n\n${opts.projectInstructions}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n---\n\n");
+
+  const model = opts.model ?? cfg.models[0];
+  const fallbacks = opts.model ? [] : cfg.models.slice(1);
+  // 'adaptive' requiere Opus 4.6+/Fable; con haiku (smoke tests) se desactiva.
+  const thinking =
+    cfg.thinking === "adaptive" && !model.includes("haiku")
+      ? ({ type: "adaptive" } as const)
+      : ({ type: "disabled" } as const);
 
   let sessionId: string | undefined = opts.resumeSessionId;
 
   const stream = query({
     prompt: opts.prompt,
     options: {
-      model: opts.model ?? config.model,
+      model,
+      ...(fallbacks.length > 0 ? { fallbackModel: fallbacks.join(",") } : {}),
       cwd: opts.cwd,
-      maxTurns: config.maxTurns,
+      maxTurns: opts.maxTurns ?? cfg.maxTurns,
       systemPrompt: { type: "preset", preset: "claude_code", append },
-      // Telegram cannot host interactive permission prompts, so the agent runs
-      // autonomously. Safe only because users are whitelisted in config.
-      permissionMode: "bypassPermissions",
-      mcpServers: {
-        ares: { type: "sdk", name: "ares", instance: buildToolbelt({ outputDir: opts.outputDir }).instance },
-      },
+      permissionMode: opts.permissionMode ?? "acceptEdits",
+      ...(opts.canUseTool
+        ? { canUseTool: (name: string, input: Record<string, unknown>) => opts.canUseTool!(name, input) }
+        : {}),
+      thinking,
+      includePartialMessages: true,
+      mcpServers: { ares: buildToolbelt({ outputDir: opts.outputDir }) },
       ...(opts.resumeSessionId ? { resume: opts.resumeSessionId } : {}),
     },
   });
@@ -86,8 +93,13 @@ export async function* runAgent(
   for await (const message of stream) {
     switch (message.type) {
       case "system": {
-        if (message.subtype === "init") {
-          sessionId = message.session_id;
+        if (message.subtype === "init") sessionId = message.session_id;
+        break;
+      }
+      case "stream_event": {
+        const ev = message.event;
+        if (ev?.type === "content_block_delta" && ev.delta?.type === "text_delta" && ev.delta.text) {
+          yield { type: "delta", text: ev.delta.text };
         }
         break;
       }
@@ -103,9 +115,7 @@ export async function* runAgent(
       }
       case "result": {
         const text =
-          message.subtype === "success" && typeof message.result === "string"
-            ? message.result
-            : "";
+          message.subtype === "success" && typeof message.result === "string" ? message.result : "";
         yield {
           type: "result",
           sessionId: message.session_id ?? sessionId,
@@ -140,6 +150,8 @@ function describeToolUse(name: string, input: unknown): string {
       return `🗂️ Listing ${str(i.pattern) ?? "files"}`;
     case "mcp__ares__screenshot":
       return `📸 Screenshotting ${str(i.url) ?? "page"}`;
+    case "mcp__ares__remember":
+      return `🧠 Guardando recuerdo: ${str(i.name) ?? ""}`;
     default:
       return `🔧 ${name.replace(/^mcp__\w+__/, "")}`;
   }

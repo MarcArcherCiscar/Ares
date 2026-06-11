@@ -44,8 +44,8 @@ export interface AresConfig {
   telegramBotToken: string;
   /** Numeric Telegram user IDs allowed to use the bot. Empty = allow everyone (dev only). */
   allowedUserIds: Set<number>;
+  /** Auth la gestiona el binario `claude` (sesión de suscripción o CLAUDE_CODE_OAUTH_TOKEN). La API key solo es un fallback opcional. */
   anthropicApiKey: string;
-  model: string;
   /** Fallback working directory when no project file/selection applies. */
   workspaceDir: string;
   maxTurns: number;
@@ -74,8 +74,9 @@ export function loadConfig(): AresConfig {
   return {
     telegramBotToken: required("TELEGRAM_BOT_TOKEN"),
     allowedUserIds,
-    anthropicApiKey: required("ANTHROPIC_API_KEY"),
-    model: process.env.ARES_MODEL?.trim() || "claude-opus-4-8",
+    // La auth la gestiona el binario `claude` (sesión de suscripción o
+    // CLAUDE_CODE_OAUTH_TOKEN). La API key solo es un fallback opcional.
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY?.trim() || "",
     workspaceDir: resolve(process.env.ARES_WORKSPACE_DIR?.trim() || process.cwd()),
     maxTurns: Number(process.env.ARES_MAX_TURNS) || 40,
     dataDir: resolve(process.env.ARES_DATA_DIR?.trim() || "data"),

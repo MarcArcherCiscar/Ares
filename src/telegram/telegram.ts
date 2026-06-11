@@ -11,6 +11,13 @@ import { toTelegramHtml } from "./format.js";
 const TELEGRAM_MAX_LEN = 4096;
 const EDIT_THROTTLE_MS = 1500;
 
+const TELEGRAM_CHANNEL_INSTRUCTIONS = `Estás hablando con Marc por Telegram (pantalla de móvil):
+- Respuestas compactas y escaneables. Nada de diffs largos ni archivos enteros salvo petición explícita.
+- Para trabajo no trivial o paralelizable, despacha subagentes con la tool Task y resume lo que encontró cada uno.
+- Cuando cambies archivos o ejecutes comandos, di qué hiciste en una o dos líneas.
+- Tras cambios de UI usa la tool mcp__ares__screenshot — la imagen le llega a Marc automáticamente.
+- Puedes usar git y gh por Bash para trabajo de GitHub (PRs, issues, CI).`;
+
 /** Friendly model aliases the user can type. */
 const MODEL_ALIASES: Record<string, string> = {
   opus: "claude-opus-4-8",
@@ -92,7 +99,7 @@ export function createBot(config: AresConfig, store: Store): Bot {
     const rec = store.getChat(ctx.chat.id);
     const current = store.current(ctx.chat.id);
     return ctx.reply(
-      `Model: ${rec.model ?? config.model}\n` +
+      `Model: ${rec.model ?? "(cadena por defecto: ~/.ares/config.json)"}\n` +
         `Project: ${current ? `${current.name} (${current.cwd})` : "(none — use /open)"}\n` +
         `Session: ${current?.sessionId ?? "(none yet)"}\n` +
         `Conversations: ${store.listProjects(ctx.chat.id).length}`,
@@ -162,7 +169,7 @@ export function createBot(config: AresConfig, store: Store): Bot {
     const arg = ctx.match.trim().toLowerCase();
     if (!arg) {
       const rec = store.getChat(ctx.chat.id);
-      return ctx.reply(`Model: ${rec.model ?? config.model}\nSet with /model <opus|sonnet|haiku|id>.`);
+      return ctx.reply(`Model: ${rec.model ?? "(cadena por defecto: ~/.ares/config.json)"}\nSet with /model <opus|sonnet|haiku|id>.`);
     }
     const model = MODEL_ALIASES[arg] ?? ctx.match.trim();
     store.setModel(ctx.chat.id, model);
@@ -234,10 +241,11 @@ export function createBot(config: AresConfig, store: Store): Bot {
         prompt,
         resumeSessionId: session.sessionId,
         cwd: session.cwd,
-        model: rec.model ?? config.model,
+        model: rec.model, // si el chat no fijó /model, undefined → cadena de ~/.ares/config.json
         projectInstructions: session.instructions,
+        channelInstructions: TELEGRAM_CHANNEL_INSTRUCTIONS,
         outputDir,
-        permissionMode: "bypassPermissions",
+        permissionMode: "bypassPermissions", // sin UI de confirmación; usuarios whitelisteados
         maxTurns: config.maxTurns,
       })) {
         if (event.type === "status") {

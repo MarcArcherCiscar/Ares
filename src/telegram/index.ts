@@ -1,6 +1,7 @@
 import { loadConfig } from "./config.js";
 import { createBot } from "./telegram.js";
 import { Store } from "./store.js";
+import { loadUserConfig } from "../core/config.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -15,8 +16,9 @@ async function main(): Promise<void> {
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
 
+  const userConfig = loadUserConfig();
   console.log("🚀 Ares starting…");
-  console.log(`   model:     ${config.model}`);
+  console.log(`   models:    ${userConfig.models.join(" → ")}`);
   console.log(`   workspace: ${config.workspaceDir}`);
   console.log(
     `   allowed:   ${

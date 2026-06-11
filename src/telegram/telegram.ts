@@ -250,6 +250,10 @@ export function createBot(config: AresConfig, store: Store): Bot {
       })) {
         if (event.type === "status") {
           renderer.setStatus(event.text);
+        } else if (event.type === "todos") {
+          const done = event.todos.filter((t) => t.status === "completed").length;
+          const current = event.todos.find((t) => t.status === "in_progress");
+          renderer.setStatus(`📋 ${done}/${event.todos.length}${current ? ` · ${current.content}` : ""}`);
         } else if (event.type === "text") {
           renderer.appendText(event.text);
         } else if (event.type === "result") {

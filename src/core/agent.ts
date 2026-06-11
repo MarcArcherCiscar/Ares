@@ -19,7 +19,14 @@ export type AgentEvent =
   | { type: "status"; text: string } // "usando tool X" — para indicadores de progreso
   | { type: "delta"; text: string } // texto incremental (UIs en vivo: CLI)
   | { type: "text"; text: string } // bloque de texto completo (Telegram)
+  | { type: "thinking"; text: string } // razonamiento incremental (CLI lo muestra atenuado)
+  | { type: "todos"; todos: TodoItem[] } // lista de pasos de TodoWrite (protocolo step-by-step)
   | { type: "result"; sessionId: string | undefined; isError: boolean; text: string };
+
+export interface TodoItem {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+}
 
 export interface RunOptions {
   prompt: string;
@@ -64,9 +71,11 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
   const model = opts.model ?? cfg.models[0];
   const fallbacks = opts.model ? [] : cfg.models.slice(1);
   // 'adaptive' requiere Opus 4.6+/Fable; con haiku (smoke tests) se desactiva.
+  // display 'summarized' es imprescindible: sin él los thinking_delta llegan
+  // con thinking:"" (solo estimated_tokens) y no hay razonamiento que mostrar.
   const thinking =
     cfg.thinking === "adaptive" && !model.includes("haiku")
-      ? ({ type: "adaptive" } as const)
+      ? ({ type: "adaptive", display: "summarized" } as const)
       : ({ type: "disabled" } as const);
 
   let sessionId: string | undefined = opts.resumeSessionId;
@@ -84,6 +93,46 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
     };
   }
 
+  // Refuerzo de doctrina: tras el primer cambio de código del run, se inyecta
+  // una sola vez el recordatorio del protocolo de verificación (igual que el
+  // harness de Claude recuerda en el momento justo, no solo en el prompt).
+  let verifyReminderSent = false;
+  const postEditReminder = async () => {
+    if (verifyReminderSent) return {};
+    verifyReminderSent = true;
+    return {
+      hookSpecificOutput: {
+        hookEventName: "PostToolUse" as const,
+        additionalContext:
+          "Recordatorio (protocols/verification.md): has cambiado código. Antes de afirmar que algo funciona o darlo por hecho, ejecuta la comprobación correspondiente (tests, build, ejecución real) y reporta la evidencia.",
+      },
+    };
+  };
+
+  // Lista de pasos (protocolo step-by-step): el id de cada tarea solo viaja en
+  // los hooks TaskCreated/TaskCompleted; los cambios a in_progress llegan como
+  // tool_use de TaskUpdate. Los hooks no pueden hacer yield, así que actualizan
+  // este mapa y el loop de mensajes drena el estado cuando cambia.
+  const tasks = new Map<string, TodoItem>();
+  let todosDirty = false;
+  const onTaskCreated = async (input: unknown) => {
+    const i = input as { task_id?: string; task_subject?: string };
+    if (i.task_id && i.task_subject) {
+      tasks.set(i.task_id, { content: i.task_subject, status: "pending" });
+      todosDirty = true;
+    }
+    return {};
+  };
+  const onTaskCompleted = async (input: unknown) => {
+    const i = input as { task_id?: string };
+    const task = i.task_id ? tasks.get(i.task_id) : undefined;
+    if (task) {
+      task.status = "completed";
+      todosDirty = true;
+    }
+    return {};
+  };
+
   const stream = query({
     prompt: singleMessage(opts.prompt),
     options: {
@@ -92,6 +141,11 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
       cwd: opts.cwd,
       maxTurns: opts.maxTurns ?? cfg.maxTurns,
       systemPrompt: { type: "preset", preset: "claude_code", append },
+      hooks: {
+        PostToolUse: [{ matcher: "Write|Edit|MultiEdit|NotebookEdit", hooks: [postEditReminder] }],
+        TaskCreated: [{ hooks: [onTaskCreated] }],
+        TaskCompleted: [{ hooks: [onTaskCompleted] }],
+      },
       permissionMode: opts.permissionMode ?? "acceptEdits",
       ...(opts.canUseTool
         ? {
@@ -109,6 +163,10 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
   });
 
   for await (const message of stream) {
+    if (todosDirty) {
+      todosDirty = false;
+      yield { type: "todos", todos: [...tasks.values()].map((t) => ({ ...t })) };
+    }
     switch (message.type) {
       case "system": {
         if (message.subtype === "init") sessionId = message.session_id;
@@ -120,6 +178,8 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
         const ev = message.event;
         if (ev?.type === "content_block_delta" && ev.delta?.type === "text_delta" && ev.delta.text) {
           yield { type: "delta", text: ev.delta.text };
+        } else if (ev?.type === "content_block_delta" && ev.delta?.type === "thinking_delta" && ev.delta.thinking) {
+          yield { type: "thinking", text: ev.delta.thinking };
         }
         break;
       }
@@ -129,7 +189,17 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
         for (const block of message.message.content) {
           if (block.type === "text" && block.text.trim().length > 0) {
             yield { type: "text", text: block.text };
-          } else if (block.type === "tool_use") {
+          } else if (block.type === "tool_use" && block.name === "TaskUpdate") {
+            // Transiciones de estado (in_progress, completed, deleted); las
+            // altas y los completados también llegan por hooks con su id.
+            const input = block.input as { taskId?: string; status?: TodoItem["status"] | "deleted" };
+            const task = input.taskId ? tasks.get(input.taskId) : undefined;
+            if (task && input.status) {
+              if (input.status === "deleted") tasks.delete(input.taskId!);
+              else task.status = input.status;
+              yield { type: "todos", todos: [...tasks.values()].map((t) => ({ ...t })) };
+            }
+          } else if (block.type === "tool_use" && block.name !== "TaskCreate") {
             yield { type: "status", text: describeToolUse(block.name, block.input) };
           }
         }

@@ -5,7 +5,7 @@ import { TextInput, Spinner, ConfirmInput } from "@inkjs/ui";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, basename } from "node:path";
-import { runAgent, type PermissionResult } from "../../core/agent.js";
+import { runAgent, type PermissionResult, type TodoItem } from "../../core/agent.js";
 import { loadUserConfig } from "../../core/config.js";
 import { Memory } from "../../core/memory.js";
 import { HELMET } from "./helmet.js";
@@ -128,6 +128,8 @@ function App({ model }: { model?: string }) {
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState("");
   const [streamText, setStreamText] = useState("");
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [thinking, setThinking] = useState("");
   // Cola: el modelo puede pedir varias tools en paralelo; cada petición espera
   // su turno en vez de machacar a la anterior (cuya promesa nunca resolvería).
   const [pendingQueue, setPendingQueue] = useState<PendingPermission[]>([]);
@@ -150,10 +152,13 @@ function App({ model }: { model?: string }) {
     setRunning(true);
     setStatus("pensando…");
     setStreamText("");
+    setTodos([]);
+    setThinking("");
 
     const outputDir = mkdtempSync(join(tmpdir(), "ares-run-"));
     let finalText = "";
     let streamed = ""; // acumulador local: el state `streamText` queda obsoleto en este closure
+    let thought = ""; // ídem para el razonamiento
     try {
       for await (const event of runAgent({
         prompt: trimmed,
@@ -177,6 +182,15 @@ function App({ model }: { model?: string }) {
         else if (event.type === "delta") {
           streamed += event.text;
           setStreamText(streamed);
+          if (thought) {
+            thought = ""; // llegó la respuesta: el razonamiento se recoge
+            setThinking("");
+          }
+        } else if (event.type === "thinking") {
+          thought += event.text;
+          setThinking(thought);
+        } else if (event.type === "todos") {
+          setTodos(event.todos);
         } else if (event.type === "result") {
           sessionId.current = event.sessionId ?? sessionId.current;
           finalText = event.text;
@@ -191,9 +205,16 @@ function App({ model }: { model?: string }) {
     setTurns((t) => [...t, { role: "ares", text: finalText || streamed || "(sin respuesta)" }]);
     setStreamText("");
     setStatus("");
+    setThinking("");
+    setTodos([]);
     setRunning(false);
     setPendingQueue([]);
   }
+
+  // Últimas 3 líneas del razonamiento, para el bloque atenuado.
+  const thinkingTail = thinking
+    ? thinking.split("\n").filter((l) => l.trim()).slice(-3)
+    : [];
 
   return (
     <Box flexDirection="column" paddingX={1}>
@@ -209,6 +230,38 @@ function App({ model }: { model?: string }) {
           </Text>
         </Box>
       ))}
+
+      {running && todos.length > 0 && (
+        <Box flexDirection="column" marginBottom={1} paddingLeft={1}>
+          {todos.map((todo, i) => (
+            <Text key={i}>
+              <Text
+                color={
+                  todo.status === "completed" ? "#38E08A" : todo.status === "in_progress" ? COLORS.sky : COLORS.meta
+                }
+              >
+                {todo.status === "completed" ? "☑ " : todo.status === "in_progress" ? "▸ " : "○ "}
+              </Text>
+              <Text
+                color={todo.status === "in_progress" ? COLORS.user : COLORS.meta}
+                strikethrough={todo.status === "completed"}
+              >
+                {todo.content}
+              </Text>
+            </Text>
+          ))}
+        </Box>
+      )}
+
+      {running && !streamText && thinkingTail.length > 0 && (
+        <Box flexDirection="column" marginBottom={1} paddingLeft={1}>
+          {thinkingTail.map((line, i) => (
+            <Text key={i} color={COLORS.sky} dimColor italic>
+              {line}
+            </Text>
+          ))}
+        </Box>
+      )}
 
       {running && streamText && (
         <Box marginBottom={1}>

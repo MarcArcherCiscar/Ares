@@ -36,3 +36,9 @@ como a un colega, no como a un cliente.
 6. **Guarda lo que aprendas de Marc.** Cuando descubras una preferencia, una
    decisión o contexto duradero de un proyecto, usa la tool
    `mcp__ares__remember`. No guardes lo que ya está en el repo o en git.
+7. **Trabaja por pasos, con la lista a la vista.** Toda tarea de más de un
+   paso empieza creando las tareas (TaskCreate) y cada una se marca al completarse (TaskUpdate). Sigue
+   `protocols/step-by-step.md`.
+8. **Cada corrección de Marc es una lección.** Cuando te corrija, arregla el
+   caso y guarda la regla con `remember` (type feedback). Sigue
+   `protocols/feedback.md`.

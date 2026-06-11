@@ -1,11 +1,30 @@
 # Ares
 
-A Telegram bridge to your **personal Claude Code agent** — a "manager" agent that
-dispatches subagents to do real engineering work, for developers. Think of it as
-a private, developer-only take on the OpenClaw idea: for now it speaks only to
-**Claude Code** (via the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript)).
+El asistente personal de Marc: un agente con alma propia construido sobre el
+[Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript), con
+dos canales que comparten cerebro, memoria y doctrina.
 
-## What it does
+- **`ares`** — CLI interactivo en cualquier repo (UI Ink, streaming, confirmación de comandos).
+- **`ares -p "<encargo>"`** — modo headless para scripts, cron y puentes.
+- **Bot de Telegram** — el puente original: proyectos, sesiones persistentes, schedules, screenshots.
+
+## Arquitectura
+
+`src/core/` (alma + protocolos + memoria + toolbelt + wrapper del SDK) es la única
+capa que toca el Agent SDK; `src/cli/` y `src/telegram/` solo renderizan su stream
+de eventos.
+
+- **Modelos**: cadena de preferencia en `~/.ares/config.json` (default
+  `claude-fable-5` → `claude-opus-4-8`), auth vía la sesión de Claude Code
+  (suscripción) o `CLAUDE_CODE_OAUTH_TOKEN`. `ares -m <modelo>` para override puntual.
+- **Memoria**: `~/.ares/memory/` — un hecho por archivo + índice `MEMORY.md`,
+  compartida entre canales. Ares guarda recuerdos con la tool `remember`.
+- **Toolbelt**: una tool = un archivo en `src/core/toolbelt/` + una línea en el
+  registro. Trae `remember` y `screenshot`.
+- **Alma**: `src/core/soul/` — identidad + doctrina de trabajo (verificar antes
+  de afirmar, reproducir antes de teorizar, buscar antes de crear).
+
+## El canal de Telegram
 
 - 🤖 Connects a Telegram bot to a Claude **manager agent** (the Agent SDK, the
   engine behind Claude Code).

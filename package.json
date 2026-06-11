@@ -1,29 +1,39 @@
 {
   "name": "ares",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Telegram bridge to your personal Claude Code agent — a manager agent that dispatches subagents, for developers.",
+  "description": "Ares — asistente personal de Marc: CLI de programación con alma + puente Telegram, sobre el Claude Agent SDK.",
   "type": "module",
   "engines": {
     "node": ">=20"
   },
+  "bin": {
+    "ares": "./dist/cli/index.js"
+  },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "dev:telegram": "tsx watch src/telegram/index.ts",
+    "dev:cli": "tsx src/cli/index.ts",
+    "build": "tsc -p tsconfig.json && cp -R src/core/soul dist/core/soul",
+    "start": "node dist/telegram/index.js",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.173",
+    "@inkjs/ui": "^2.0.0",
     "croner": "^8.1.0",
     "dotenv": "^16.4.5",
     "grammy": "^1.30.0",
+    "ink": "^7.0.5",
     "playwright": "^1.47.0",
-    "zod": "^3.23.8"
+    "react": "^19.0.0",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",
+    "@types/react": "^19.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.8"
   }
 }

@@ -1,6 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { AresConfig } from "../telegram/config.js";
-import { createScreenshotServer } from "./toolbelt/screenshot.js";
+import { buildToolbelt } from "./toolbelt/index.js";
 
 /**
  * How the manager agent should behave. The `claude_code` preset already gives it
@@ -66,8 +66,6 @@ export async function* runAgent(
 
   let sessionId: string | undefined = opts.resumeSessionId;
 
-  const screenshotServer = createScreenshotServer(opts.outputDir);
-
   const stream = query({
     prompt: opts.prompt,
     options: {
@@ -79,7 +77,7 @@ export async function* runAgent(
       // autonomously. Safe only because users are whitelisted in config.
       permissionMode: "bypassPermissions",
       mcpServers: {
-        ares: { type: "sdk", name: "ares", instance: screenshotServer.instance },
+        ares: { type: "sdk", name: "ares", instance: buildToolbelt({ outputDir: opts.outputDir }).instance },
       },
       ...(opts.resumeSessionId ? { resume: opts.resumeSessionId } : {}),
     },

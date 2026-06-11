@@ -175,9 +175,9 @@ function App({ model }: { model?: string }) {
         </Box>
       ) : running ? (
         <Box>
-          <Text color={COLORS.sky}>
-            <Spinner label={` ${status || "trabajando…"}`} />
-          </Text>
+          {/* Spinner renderiza un <Box> interno: no puede ir dentro de <Text>. */}
+          <Spinner />
+          <Text color={COLORS.sky}> {status || "trabajando…"}</Text>
         </Box>
       ) : (
         <Box>

@@ -7,10 +7,45 @@ import { tmpdir } from "node:os";
 import { join, basename } from "node:path";
 import { runAgent, type PermissionResult } from "../../core/agent.js";
 
+/** Paleta Ares (identidad 2026-06): https://github.com/MarcArcherCiscar/Ares */
+const COLORS = {
+  agent: "#2F6BFF", // Ares Blue — voz del agente, marca
+  spark: "#34E0FF", // Spark — bisel del banner, acentos, celebración
+  user: "#E6ECF5", // Foreground — texto del usuario
+  sky: "#8FB3FF", // Sky — glyph del prompt, pensando/trabajando
+  meta: "#8B98B0", // Steel — subtítulos, ayudas, atenuado
+  warn: "#FFC53D", // Gold — permisos y avisos
+  error: "#FF5C5C", // Ember — solo errores
+} as const;
+
 const BANNER = [
-  "  ▄▀█ █▀█ █▀▀ █▀",
-  "  █▀█ █▀▄ ██▄ ▄█",
+  " █████╗ ██████╗ ███████╗███████╗",
+  "██╔══██╗██╔══██╗██╔════╝██╔════╝",
+  "███████║██████╔╝█████╗  ███████╗",
+  "██╔══██║██╔══██╗██╔══╝  ╚════██║",
+  "██║  ██║██║  ██║███████╗███████║",
+  "╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝",
 ];
+
+/** Cara de letra (█) en Ares Blue; bisel y sombra (╔╗╚╝═║) en Spark. */
+function BannerLine({ line }: { line: string }) {
+  const segments: { text: string; face: boolean }[] = [];
+  for (const ch of line) {
+    const face = ch === "█";
+    const last = segments[segments.length - 1];
+    if (last && last.face === face) last.text += ch;
+    else segments.push({ text: ch, face });
+  }
+  return (
+    <Text>
+      {segments.map((s, i) => (
+        <Text key={i} color={s.face ? COLORS.agent : COLORS.spark} bold>
+          {s.text}
+        </Text>
+      ))}
+    </Text>
+  );
+}
 
 interface Turn {
   role: "user" | "ares";
@@ -99,28 +134,28 @@ function App({ model }: { model?: string }) {
   return (
     <Box flexDirection="column" paddingX={1}>
       <Box flexDirection="column" marginBottom={1}>
-        {BANNER.map((line) => (
-          <Text key={line} color="redBright" bold>
-            {line}
-          </Text>
+        {BANNER.map((line, i) => (
+          <BannerLine key={i} line={line} />
         ))}
-        <Text dimColor>
-          {"  "}a tu servicio en {basename(process.cwd())} · /salir para terminar
+        <Text color={COLORS.meta}>
+          tu colega en la terminal · {basename(process.cwd())} · /salir para terminar
         </Text>
       </Box>
 
       {turns.map((t, i) => (
         <Box key={i} marginBottom={1}>
-          <Text color={t.role === "user" ? "cyan" : "redBright"} bold>
-            {t.role === "user" ? "tú ▸ " : "ares ▸ "}
+          <Text color={t.role === "user" ? COLORS.sky : COLORS.agent} bold>
+            {t.role === "user" ? "› " : "ares ▸ "}
           </Text>
-          <Text>{t.text}</Text>
+          <Text color={t.role === "user" ? COLORS.user : t.text.startsWith("❌") ? COLORS.error : undefined}>
+            {t.text}
+          </Text>
         </Box>
       ))}
 
       {running && streamText && (
         <Box marginBottom={1}>
-          <Text color="redBright" bold>
+          <Text color={COLORS.agent} bold>
             {"ares ▸ "}
           </Text>
           <Text>{streamText}</Text>
@@ -128,10 +163,10 @@ function App({ model }: { model?: string }) {
       )}
 
       {pending ? (
-        <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1}>
-          <Text color="yellow">
-            ⚔️ Ares quiere usar {pending.toolName}: <Text bold>{pending.detail}</Text>{" "}
-            <Text dimColor>(Y/n)</Text>
+        <Box flexDirection="column" borderStyle="round" borderColor={COLORS.warn} paddingX={1}>
+          <Text color={COLORS.warn}>
+            ⚠ Ares quiere usar {pending.toolName}: <Text bold>{pending.detail}</Text>{" "}
+            <Text color={COLORS.meta}>(Y/n)</Text>
           </Text>
           <ConfirmInput
             onConfirm={() => resolvePending({ behavior: "allow" })}
@@ -140,12 +175,14 @@ function App({ model }: { model?: string }) {
         </Box>
       ) : running ? (
         <Box>
-          <Spinner label={` ${status || "trabajando…"}`} />
+          <Text color={COLORS.sky}>
+            <Spinner label={` ${status || "trabajando…"}`} />
+          </Text>
         </Box>
       ) : (
         <Box>
-          <Text color="cyan" bold>
-            {"tú ▸ "}
+          <Text color={COLORS.sky} bold>
+            {"› "}
           </Text>
           {/* @inkjs/ui TextInput es no-controlado (sin prop `value`): el key fuerza un
               remount tras cada turno para que el campo empiece vacío. */}

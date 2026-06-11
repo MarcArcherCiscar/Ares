@@ -71,9 +71,10 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
 
   let sessionId: string | undefined = opts.resumeSessionId;
 
-  // canUseTool exige modo de entrada streaming: con prompt string el CLI ignora
-  // el allow del callback y la tool falla con error de permisos (verificado en
-  // SDK 0.3.173). Un AsyncIterable de un solo mensaje activa ese modo.
+  // El modo de entrada streaming es obligatorio siempre: tanto canUseTool como
+  // los servidores MCP in-process (el toolbelt) lo requieren — con prompt string
+  // el callback de permisos se ignora y las tools del toolbelt nunca conectan
+  // (verificado empíricamente en SDK 0.3.173).
   async function* singleMessage(prompt: string) {
     yield {
       type: "user" as const,
@@ -84,7 +85,7 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
   }
 
   const stream = query({
-    prompt: opts.canUseTool ? singleMessage(opts.prompt) : opts.prompt,
+    prompt: singleMessage(opts.prompt),
     options: {
       model,
       ...(fallbacks.length > 0 ? { fallbackModel: fallbacks.join(",") } : {}),

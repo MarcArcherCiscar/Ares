@@ -20,5 +20,9 @@ export function buildToolbelt(ctx: ToolbeltContext) {
     name: "ares",
     version: "1.0.0",
     tools: TOOLS.map((factory) => factory(ctx)),
+    // Sin esto el SDK difiere las tools tras ToolSearch y los modelos pequeños
+    // no consiguen invocarlas (verificado con haiku). Son pocas tools; cargarlas
+    // siempre no tiene coste de contexto relevante.
+    alwaysLoad: true,
   });
 }

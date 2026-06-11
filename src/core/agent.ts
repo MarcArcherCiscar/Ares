@@ -71,8 +71,20 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
 
   let sessionId: string | undefined = opts.resumeSessionId;
 
+  // canUseTool exige modo de entrada streaming: con prompt string el CLI ignora
+  // el allow del callback y la tool falla con error de permisos (verificado en
+  // SDK 0.3.173). Un AsyncIterable de un solo mensaje activa ese modo.
+  async function* singleMessage(prompt: string) {
+    yield {
+      type: "user" as const,
+      message: { role: "user" as const, content: prompt },
+      parent_tool_use_id: null,
+      session_id: "",
+    };
+  }
+
   const stream = query({
-    prompt: opts.prompt,
+    prompt: opts.canUseTool ? singleMessage(opts.prompt) : opts.prompt,
     options: {
       model,
       ...(fallbacks.length > 0 ? { fallbackModel: fallbacks.join(",") } : {}),
@@ -81,7 +93,12 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
       systemPrompt: { type: "preset", preset: "claude_code", append },
       permissionMode: opts.permissionMode ?? "acceptEdits",
       ...(opts.canUseTool
-        ? { canUseTool: (name: string, input: Record<string, unknown>) => opts.canUseTool!(name, input) }
+        ? {
+            canUseTool: async (name: string, input: Record<string, unknown>) => {
+              const r = await opts.canUseTool!(name, input);
+              return r.behavior === "allow" ? { ...r, updatedInput: r.updatedInput ?? input } : r;
+            },
+          }
         : {}),
       thinking,
       includePartialMessages: true,

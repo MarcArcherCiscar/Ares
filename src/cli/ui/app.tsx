@@ -8,6 +8,7 @@ import { join, basename } from "node:path";
 import { runAgent, type PermissionResult } from "../../core/agent.js";
 import { loadUserConfig } from "../../core/config.js";
 import { Memory } from "../../core/memory.js";
+import { HELMET } from "./helmet.js";
 
 const VERSION = "v1.0";
 
@@ -31,8 +32,15 @@ const BANNER = [
   "╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝",
 ];
 
-/** Cara de letra (█) en Ares Blue; bisel y sombra (╔╗╚╝═║) en Spark. */
-function BannerLine({ line }: { line: string }) {
+/** Interpola el degradado Aegis (Ares Blue → Spark) para la línea t ∈ [0,1]. */
+function aegis(t: number): string {
+  const lerp = (a: number, b: number) => Math.round(a + (b - a) * t);
+  const [r, g, b] = [lerp(0x2f, 0x34), lerp(0x6b, 0xe0), 0xff];
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Cara de letra (█) en degradado Aegis; bisel y sombra (╔╗╚╝═║) en Ares Deep. */
+function BannerLine({ line, t }: { line: string; t: number }) {
   const segments: { text: string; face: boolean }[] = [];
   for (const ch of line) {
     const face = ch === "█";
@@ -43,7 +51,7 @@ function BannerLine({ line }: { line: string }) {
   return (
     <Text>
       {segments.map((s, i) => (
-        <Text key={i} color={s.face ? COLORS.agent : COLORS.spark} bold>
+        <Text key={i} color={s.face ? aegis(t) : "#1E4FD6"} bold>
           {s.text}
         </Text>
       ))}
@@ -52,41 +60,46 @@ function BannerLine({ line }: { line: string }) {
 }
 
 /** Pantalla de bienvenida: banner en caja + estado de la sesión. */
-function Welcome({ model }: { model?: string }) {
+function Welcome({ model: modelOverride }: { model?: string }) {
   // Datos de sesión, leídos una vez al montar (son lecturas locales baratas).
   const [info] = useState(() => {
     const cfg = loadUserConfig();
     const recuerdos = new Memory().index().split("\n").filter((l) => l.trim().startsWith("- ")).length;
-    return { model: model ?? cfg.models[0], recuerdos };
+    // Nombre corto para la fila de info: "claude-fable-5" → "fable-5".
+    const model = (modelOverride ?? cfg.models[0]).replace(/^claude-/, "");
+    return { model, recuerdos };
   });
 
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Box
-        flexDirection="column"
         borderStyle="round"
         borderColor={COLORS.agent}
         paddingX={2}
         paddingY={0}
         alignSelf="flex-start"
       >
-        <Box flexDirection="column" marginY={1}>
-          {BANNER.map((line, i) => (
-            <BannerLine key={i} line={line} />
+        <Box flexDirection="column" marginY={1} marginRight={2}>
+          {HELMET.map((line, i) => (
+            <Text key={i}>{line}</Text>
           ))}
         </Box>
-        <Text>
-          <Text color={COLORS.spark} bold>⚔ </Text>
-          <Text color={COLORS.user}>tu colega en la terminal</Text>
-          <Text color={COLORS.meta}> · {VERSION}</Text>
-        </Text>
-        <Box marginBottom={1}>
+        <Box flexDirection="column" justifyContent="center">
+          {BANNER.map((line, i) => (
+            <BannerLine key={i} line={line} t={i / (BANNER.length - 1)} />
+          ))}
+          <Text> </Text>
+          <Text>
+            <Text color={COLORS.spark} bold>⚔ </Text>
+            <Text color={COLORS.user}>tu colega en la terminal</Text>
+            <Text color={COLORS.meta}> · {VERSION}</Text>
+          </Text>
           <Text>
             <Text color={COLORS.meta}>▸ </Text>
             <Text color={COLORS.sky}>{basename(process.cwd())}</Text>
-            <Text color={COLORS.meta}>   ▸ </Text>
+            <Text color={COLORS.meta}> · </Text>
             <Text color={COLORS.sky}>{info.model}</Text>
-            <Text color={COLORS.meta}>   ▸ </Text>
+            <Text color={COLORS.meta}> · </Text>
             <Text color={COLORS.sky}>
               {info.recuerdos} {info.recuerdos === 1 ? "recuerdo" : "recuerdos"}
             </Text>

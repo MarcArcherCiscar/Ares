@@ -17,9 +17,16 @@ export function rememberTool(ctx: ToolbeltContext) {
       body: z.string().describe("El hecho completo, en markdown"),
     },
     async (args) => {
-      const memory = ctx.memoryDir ? new Memory(ctx.memoryDir) : new Memory();
-      const file = memory.save(args);
-      return { content: [{ type: "text" as const, text: `Recuerdo guardado: ${file}` }] };
+      try {
+        const memory = ctx.memoryDir ? new Memory(ctx.memoryDir) : new Memory();
+        const file = memory.save(args);
+        return { content: [{ type: "text" as const, text: `Recuerdo guardado: ${file}` }] };
+      } catch (err) {
+        return {
+          content: [{ type: "text" as const, text: `Error: ${(err as Error).message}` }],
+          isError: true,
+        };
+      }
     },
   );
 }

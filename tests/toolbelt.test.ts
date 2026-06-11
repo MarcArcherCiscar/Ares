@@ -23,4 +23,16 @@ describe("toolbelt", () => {
     expect(readFileSync(join(memoryDir, "MEMORY.md"), "utf8")).toContain("test-dato");
     expect(JSON.stringify(result.content)).toContain("test-dato");
   });
+
+  // Finding #1: handler must catch empty-slug error and return isError
+  it("remember devuelve isError cuando el name no produce slug válido", async () => {
+    const memoryDir = mkdtempSync(join(tmpdir(), "ares-mem-"));
+    const def = rememberTool({ outputDir: tmpdir(), memoryDir });
+    const result = await def.handler(
+      { name: "¿¡!?", description: "d", type: "user", body: "b" },
+      { signal: new AbortController().signal },
+    );
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain("Error");
+  });
 });

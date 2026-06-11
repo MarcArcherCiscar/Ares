@@ -43,7 +43,7 @@ export function screenshotTool(ctx: ToolbeltContext) {
           const path = join(ctx.outputDir, filename);
 
           if (args.selector) {
-            const el = await page.locator(args.selector).first();
+            const el = page.locator(args.selector).first();
             await el.screenshot({ path });
           } else {
             await page.screenshot({ path, fullPage: args.fullPage ?? false });

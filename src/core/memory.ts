@@ -45,14 +45,29 @@ export class Memory {
       .replace(/[̀-ͯ]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
+
+    // Finding #1: guard against empty slug
+    if (!slug) {
+      throw new Error("name no produce un slug válido; usa letras/números");
+    }
+
+    // Finding #4: sanitize description (newlines corrupt frontmatter and index)
+    const description = entry.description.replace(/\s+/g, " ").trim();
+
     const file = join(this.dir, `${slug}.md`);
     const isNew = !existsSync(file);
     writeFileSync(
       file,
-      ["---", `name: ${slug}`, `description: ${entry.description}`, `type: ${entry.type}`, "---", "", entry.body, ""].join("\n"),
+      ["---", `name: ${slug}`, `description: ${description}`, `type: ${entry.type}`, "---", "", entry.body, ""].join("\n"),
     );
     if (isNew) {
-      appendFileSync(this.indexFile, `- [${slug}](${slug}.md) — ${entry.description}\n`);
+      appendFileSync(this.indexFile, `- [${slug}](${slug}.md) — ${description}\n`);
+    } else {
+      // Finding #2: update the existing index line with the new description
+      const idx = existsSync(this.indexFile) ? readFileSync(this.indexFile, "utf8") : "";
+      const linePattern = new RegExp(`^- \\[.*?\\]\\(${slug}\\.md\\) — .*$`, "m");
+      const updated = idx.replace(linePattern, `- [${slug}](${slug}.md) — ${description}`);
+      writeFileSync(this.indexFile, updated);
     }
     return file;
   }

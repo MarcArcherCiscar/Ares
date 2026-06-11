@@ -30,4 +30,21 @@ describe("loadUserConfig", () => {
     writeFileSync(join(dir, "config.json"), "{no es json");
     expect(loadUserConfig(dir)).toEqual(DEFAULT_CONFIG);
   });
+
+  // Finding #3: invalid field values fall back to defaults independently
+  it('{"models": []} → defaults para models, mantiene otros valores', () => {
+    const dir = tmp();
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ models: [] }));
+    const cfg = loadUserConfig(dir);
+    expect(cfg.models).toEqual(DEFAULT_CONFIG.models);
+    expect(cfg.maxTurns).toBe(DEFAULT_CONFIG.maxTurns);
+  });
+
+  it('{"models": "x", "maxTurns": 5} → models default pero maxTurns 5', () => {
+    const dir = tmp();
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ models: "x", maxTurns: 5 }));
+    const cfg = loadUserConfig(dir);
+    expect(cfg.models).toEqual(DEFAULT_CONFIG.models);
+    expect(cfg.maxTurns).toBe(5);
+  });
 });

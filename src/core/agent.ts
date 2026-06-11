@@ -97,6 +97,8 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
         break;
       }
       case "stream_event": {
+        // Finding #5: skip stream events from subagents (parent_tool_use_id !== null)
+        if (message.parent_tool_use_id !== null) break;
         const ev = message.event;
         if (ev?.type === "content_block_delta" && ev.delta?.type === "text_delta" && ev.delta.text) {
           yield { type: "delta", text: ev.delta.text };
@@ -104,6 +106,8 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
         break;
       }
       case "assistant": {
+        // Finding #5: skip assistant messages from subagents (parent_tool_use_id !== null)
+        if (message.parent_tool_use_id !== null) break;
         for (const block of message.message.content) {
           if (block.type === "text" && block.text.trim().length > 0) {
             yield { type: "text", text: block.text };
@@ -114,8 +118,18 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
         break;
       }
       case "result": {
-        const text =
-          message.subtype === "success" && typeof message.result === "string" ? message.result : "";
+        // Finding #6: include error reason when subtype !== "success"
+        let text: string;
+        if (message.subtype === "success" && typeof message.result === "string") {
+          text = message.result;
+        } else if (message.subtype !== "success") {
+          const errMsg = message as { subtype: string; errors?: string[] };
+          const parts: string[] = [errMsg.subtype];
+          if (errMsg.errors && errMsg.errors.length > 0) parts.push(errMsg.errors.join("; "));
+          text = parts.join(": ");
+        } else {
+          text = "";
+        }
         yield {
           type: "result",
           sessionId: message.session_id ?? sessionId,

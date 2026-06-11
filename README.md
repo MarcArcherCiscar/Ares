@@ -24,6 +24,17 @@ de eventos.
 - **Alma**: `src/core/soul/` — identidad + doctrina de trabajo (verificar antes
   de afirmar, reproducir antes de teorizar, buscar antes de crear).
 
+## Identidad
+
+El avatar de Ares vive en `assets/`:
+
+- `ares-helmet.png` — original 1254×1254 (casco espartano, Ares Blue sobre Ink).
+- `ares-avatar-640.png` — para el bot de Telegram: BotFather → `/setuserpic`.
+- `ares-icon-512.png` — icono genérico (apps, favicon base).
+
+Paleta: Ares Blue `#2F6BFF` · Spark `#34E0FF` · Sky `#8FB3FF` · Gold `#FFC53D` ·
+Ember `#FF5C5C` · Laurel `#38E08A` · Steel `#8B98B0` · Ink `#0B1220`.
+
 ## El canal de Telegram
 
 - 🤖 Connects a Telegram bot to a Claude **manager agent** (the Agent SDK, the

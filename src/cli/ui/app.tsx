@@ -29,8 +29,16 @@ function App({ model }: { model?: string }) {
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState("");
   const [streamText, setStreamText] = useState("");
-  const [pending, setPending] = useState<PendingPermission | null>(null);
+  // Cola: el modelo puede pedir varias tools en paralelo; cada petición espera
+  // su turno en vez de machacar a la anterior (cuya promesa nunca resolvería).
+  const [pendingQueue, setPendingQueue] = useState<PendingPermission[]>([]);
+  const pending = pendingQueue[0] ?? null;
   const sessionId = useRef<string | undefined>(undefined);
+
+  function resolvePending(r: PermissionResult) {
+    pending?.resolve(r);
+    setPendingQueue((q) => q.slice(1));
+  }
 
   async function submit(prompt: string) {
     const trimmed = prompt.trim();
@@ -61,7 +69,7 @@ function App({ model }: { model?: string }) {
               toolName === "Bash" && typeof input.command === "string"
                 ? input.command
                 : JSON.stringify(input).slice(0, 120);
-            setPending({ toolName, detail, resolve });
+            setPendingQueue((q) => [...q, { toolName, detail, resolve }]);
           }),
         channelInstructions:
           "Estás en la terminal de Marc, en una sesión interactiva. Markdown ligero.",
@@ -85,7 +93,7 @@ function App({ model }: { model?: string }) {
     setStreamText("");
     setStatus("");
     setRunning(false);
-    setPending(null);
+    setPendingQueue([]);
   }
 
   return (
@@ -126,14 +134,8 @@ function App({ model }: { model?: string }) {
             <Text dimColor>(Y/n)</Text>
           </Text>
           <ConfirmInput
-            onConfirm={() => {
-              pending.resolve({ behavior: "allow" });
-              setPending(null);
-            }}
-            onCancel={() => {
-              pending.resolve({ behavior: "deny", message: "Marc lo ha denegado." });
-              setPending(null);
-            }}
+            onConfirm={() => resolvePending({ behavior: "allow" })}
+            onCancel={() => resolvePending({ behavior: "deny", message: "Marc lo ha denegado." })}
           />
         </Box>
       ) : running ? (

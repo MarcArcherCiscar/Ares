@@ -47,6 +47,29 @@ describe("findReviewSkill", () => {
     expect(r.tech).toBe("typescript");
   });
 
+  it("afina a svelte si el package.json depende de astro/svelte", () => {
+    const repo = tmp();
+    writeFileSync(join(repo, "package.json"), JSON.stringify({ dependencies: { astro: "^4", svelte: "^5" } }));
+    const home = tmp();
+    const techDir = join(home, "review-svelte");
+    mkdirSync(techDir, { recursive: true });
+    writeFileSync(join(techDir, "SKILL.md"), "# svelte");
+    const r = findReviewSkill(repo, home);
+    expect(r.source).toBe("tech");
+    expect(r.tech).toBe("svelte");
+    expect(r.content).toContain("svelte");
+  });
+
+  it("package.json con JSON roto → typescript por defecto (no lanza)", () => {
+    const repo = tmp();
+    writeFileSync(join(repo, "package.json"), "{roto");
+    const home = tmp();
+    mkdirSync(join(home, "review-typescript"), { recursive: true });
+    writeFileSync(join(home, "review-typescript", "SKILL.md"), "# ts");
+    const r = findReviewSkill(repo, home);
+    expect(r.tech).toBe("typescript");
+  });
+
   it("genérico cuando no hay skill local ni de tecnología", () => {
     const r = findReviewSkill(tmp(), tmp());
     expect(r.source).toBe("generic");

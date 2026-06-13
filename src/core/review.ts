@@ -25,6 +25,22 @@ const TECH_MARKERS: Array<[file: string, tech: string]> = [
   ["package.json", "typescript"],
 ];
 
+/**
+ * Afina la tecnología de un repo Node: si el package.json depende de astro o
+ * svelte, es "svelte" (web frontend); si no, "typescript" a secas. Nunca lanza.
+ */
+function refineNodeTech(cwd: string): string {
+  try {
+    const pkg = readFileSync(join(cwd, "package.json"), "utf8");
+    const deps = JSON.parse(pkg) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    const all = { ...deps.dependencies, ...deps.devDependencies };
+    if ("astro" in all || "svelte" in all) return "svelte";
+  } catch {
+    // package.json ilegible o JSON roto → typescript por defecto
+  }
+  return "typescript";
+}
+
 const GENERIC_REVIEW = `# Code review genérico (sin skill específica del repo)
 
 Lanza 3 agentes en paralelo (tool Task) sobre el diff, cada uno con un foco, y
@@ -62,7 +78,7 @@ export function findReviewSkill(
   let tech: string | undefined;
   for (const [marker, name] of TECH_MARKERS) {
     if (existsSync(join(cwd, marker))) {
-      tech = name;
+      tech = name === "typescript" ? refineNodeTech(cwd) : name;
       break;
     }
   }

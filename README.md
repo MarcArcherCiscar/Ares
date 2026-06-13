@@ -30,6 +30,11 @@ de eventos.
   registro. Trae `remember` y `screenshot`.
 - **Alma**: `src/core/soul/` — identidad + doctrina de trabajo (verificar antes
   de afirmar, reproducir antes de teorizar, buscar antes de crear).
+- **Flujo disciplinado**: en tareas no triviales Ares sigue spec→review→plan→
+  review→implementación→review→resumen→review (`soul/protocols/workflow.md`). El
+  code review usa la skill del repo (`.claude/skills/*review*`) si existe, si no
+  la de la tecnología detectada (`~/.ares/skills/review-<tech>/`), si no una
+  genérica. Lo resuelve `core/review.ts` + la tool `review_skill`.
 
 ## Identidad
 

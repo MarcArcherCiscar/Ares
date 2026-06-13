@@ -120,6 +120,34 @@ function Welcome({ model: modelOverride, safe }: { model?: string; safe?: boolea
   );
 }
 
+// URLs http(s) y hosts locales con puerto (localhost:5123, 127.0.0.1:8080/ruta).
+const LINK_RE = /(https?:\/\/[^\s)]+|(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/[^\s)]*)?)/g;
+
+/** Envuelve una URL en un hyperlink de terminal (OSC 8): clicable donde el emulador lo soporte. */
+function osc8(href: string, label: string): string {
+  return `]8;;${href}${label}]8;;`;
+}
+
+/** Texto de Ares con los enlaces clicables (Spark + subrayado). El resto, color normal. */
+function Linkified({ text, color }: { text: string; color?: string }) {
+  const parts = text.split(LINK_RE);
+  return (
+    <Text color={color}>
+      {parts.map((part, i) => {
+        if (i % 2 === 1) {
+          const href = part.startsWith("http") ? part : `http://${part}`;
+          return (
+            <Text key={i} color={COLORS.spark} underline>
+              {osc8(href, part)}
+            </Text>
+          );
+        }
+        return part;
+      })}
+    </Text>
+  );
+}
+
 interface Turn {
   role: "user" | "ares";
   text: string;
@@ -241,9 +269,11 @@ function App({ model, safe }: { model?: string; safe?: boolean }) {
           <Text color={t.role === "user" ? COLORS.sky : COLORS.agent} bold>
             {t.role === "user" ? "› " : "ares ▸ "}
           </Text>
-          <Text color={t.role === "user" ? COLORS.user : t.text.startsWith("❌") ? COLORS.error : undefined}>
-            {t.text}
-          </Text>
+          {t.role === "user" ? (
+            <Text color={COLORS.user}>{t.text}</Text>
+          ) : (
+            <Linkified text={t.text} color={t.text.startsWith("❌") ? COLORS.error : undefined} />
+          )}
         </Box>
       ))}
 

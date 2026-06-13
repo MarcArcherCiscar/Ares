@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { loadSoul } from "../src/core/soul.js";
 
 describe("loadSoul", () => {
-  it("incluye identidad, los once protocolos y el bloque de carácter", () => {
+  it("incluye identidad, los doce protocolos y el bloque de carácter", () => {
     const soul = loadSoul();
     expect(soul).toContain("Eres Ares");
     expect(soul).toContain("## Carácter");
@@ -19,6 +19,7 @@ describe("loadSoul", () => {
       "tests primero",
       "ojos estructurales",
       "notas del proyecto",
+      "criterio de ingeniería",
     ]) {
       expect(soul).toContain(marca);
     }

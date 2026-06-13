@@ -1,6 +1,7 @@
 // src/core/toolbelt/index.ts
 import { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { rememberTool } from "./remember.js";
+import { reviewSkillTool } from "./review-skill.js";
 import { screenshotTool } from "./screenshot.js";
 import type { ToolbeltContext } from "./types.js";
 
@@ -13,7 +14,7 @@ export type { ToolbeltContext } from "./types.js";
  * añadir la factory a esta lista. Las tools se exponen al agente con el
  * prefijo `mcp__ares__<nombre>`.
  */
-const TOOLS = [rememberTool, screenshotTool];
+const TOOLS = [rememberTool, screenshotTool, reviewSkillTool];
 
 export function buildToolbelt(ctx: ToolbeltContext) {
   return createSdkMcpServer({

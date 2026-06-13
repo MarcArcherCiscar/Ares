@@ -91,7 +91,7 @@ function Welcome({ model: modelOverride, safe }: { model?: string; safe?: boolea
           <Text> </Text>
           <Text>
             <Text color={COLORS.spark} bold>⚔ </Text>
-            <Text color={COLORS.user}>tu colega en la terminal</Text>
+            <Text color={COLORS.user}>Programa. Recuerda. No miente.</Text>
             <Text color={COLORS.meta}> · {VERSION}</Text>
           </Text>
           <Text>

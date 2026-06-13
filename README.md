@@ -1,8 +1,15 @@
+<div align="center">
+
+<img src="assets/ares-avatar-640.png" alt="Ares" width="180" />
+
 # Ares
 
+**Programa. Recuerda. No miente.** · un agente con alma propia sobre el [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript)
+
+</div>
+
 El asistente personal de Marc: un agente con alma propia construido sobre el
-[Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript), con
-dos canales que comparten cerebro, memoria y doctrina.
+Claude Agent SDK, con dos canales que comparten cerebro, memoria y doctrina.
 
 - **`ares`** — CLI interactivo en cualquier repo (UI Ink, streaming, confirmación de comandos).
 - **`ares -p "<encargo>"`** — modo headless para scripts, cron y puentes.
@@ -26,11 +33,10 @@ de eventos.
 
 ## Identidad
 
-El avatar de Ares vive en `assets/`:
-
-- `ares-helmet.png` — original 1254×1254 (casco espartano, Ares Blue sobre Ink).
-- `ares-avatar-640.png` — para el bot de Telegram: BotFather → `/setuserpic`.
-- `ares-icon-512.png` — icono genérico (apps, favicon base).
+El casco espartano (Ares Blue sobre Ink) vive en `assets/`: `ares-helmet.png`
+(original 1254×1254), `ares-avatar-640.png` (avatar de Telegram, BotFather →
+`/setuserpic`) y `ares-icon-512.png` (icono genérico). El banner del CLI lo
+deriva en arte ANSI vía `scripts/helmet-to-ansi.mjs`.
 
 Paleta: Ares Blue `#2F6BFF` · Spark `#34E0FF` · Sky `#8FB3FF` · Gold `#FFC53D` ·
 Ember `#FF5C5C` · Laurel `#38E08A` · Steel `#8B98B0` · Ink `#0B1220`.

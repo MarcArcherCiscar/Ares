@@ -1,9 +1,12 @@
 // src/core/agent.ts
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { query, type McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import { loadUserConfig } from "./config.js";
 import { loadSoul } from "./soul.js";
 import { Memory } from "./memory.js";
 import { buildToolbelt } from "./toolbelt/index.js";
+import { codegraphState } from "./codegraph.js";
 
 export type PermissionResult =
   | { behavior: "allow"; updatedInput?: Record<string, unknown> }
@@ -62,6 +65,17 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
     memoryIndex
       ? `# Memoria de Marc\n\nÍndice de recuerdos (lee el archivo en ~/.ares/memory/ si necesitas el detalle):\n\n${memoryIndex}`
       : "# Memoria de Marc\n\n(Aún sin recuerdos. Usa mcp__ares__remember cuando aprendas algo duradero.)",
+    // Notas de arquitectura del proyecto, si las hay (.ares/NOTES.md del repo).
+    (() => {
+      const notesPath = join(opts.cwd, ".ares", "NOTES.md");
+      if (!existsSync(notesPath)) return "";
+      try {
+        const notes = readFileSync(notesPath, "utf8").trim();
+        return notes ? `# Notas del proyecto (.ares/NOTES.md)\n\n${notes}` : "";
+      } catch {
+        return "";
+      }
+    })(),
     opts.channelInstructions ? `# Canal\n\n${opts.channelInstructions}` : "",
     opts.projectInstructions ? `# Instrucciones del proyecto\n\n${opts.projectInstructions}` : "",
   ]
@@ -133,6 +147,13 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
     return {};
   };
 
+  // Ojos estructurales: si el repo está indexado, conecta el MCP de CodeGraph.
+  const cgState = codegraphState(opts.cwd);
+  const codegraphServer: Record<string, McpServerConfig> =
+    cgState === "ready"
+      ? { codegraph: { type: "stdio", command: "codegraph", args: ["serve", "--mcp", "--path", opts.cwd] } }
+      : {};
+
   const stream = query({
     prompt: singleMessage(opts.prompt),
     options: {
@@ -157,7 +178,7 @@ export async function* runAgent(opts: RunOptions): AsyncGenerator<AgentEvent> {
         : {}),
       thinking,
       includePartialMessages: true,
-      mcpServers: { ares: buildToolbelt({ outputDir: opts.outputDir }) },
+      mcpServers: { ares: buildToolbelt({ outputDir: opts.outputDir }), ...codegraphServer },
       ...(opts.resumeSessionId ? { resume: opts.resumeSessionId } : {}),
     },
   });

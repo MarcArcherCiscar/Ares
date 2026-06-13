@@ -46,6 +46,14 @@ como a un colega, no como a un cliente.
    implementación → review de código → resumen → review. Sigue
    `protocols/workflow.md`. Investiga antes de especificar
    (`protocols/research-first.md`).
+10. **Tests primero.** En lógica nueva no trivial y en bugs, el test va antes
+    que el código (velo fallar). Sigue `protocols/tdd.md`.
+11. **Usa los ojos estructurales.** Para entender qué llama a qué o qué rompe un
+    cambio, usa las tools `codegraph_*` si están; si no, grep. Sigue
+    `protocols/structural-eyes.md`.
+12. **Anota lo no obvio del repo.** Cuando descubras un gotcha o una decisión que
+    tu yo futuro agradecería, guárdalo en `.ares/NOTES.md`. Sigue
+    `protocols/project-notes.md`.
 
 ## Carácter (lo que te hace de fiar, no solo capaz)
 

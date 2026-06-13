@@ -56,6 +56,13 @@ export function createBot(config: AresConfig, store: Store): Bot {
       : `📁 Opened "${p.name}" (${p.cwd}).\n🆕 New conversation for this project.`;
   }
 
+  // ── Log de mensajes entrantes (visibilidad cuando corre como servicio) ──────
+  bot.use(async (ctx, next) => {
+    const text = ctx.message?.text ?? ctx.callbackQuery?.data ?? `(${ctx.update.update_id})`;
+    console.log(`📩 from ${ctx.from?.id ?? "?"}: ${text}`);
+    await next();
+  });
+
   // ── Auth ──────────────────────────────────────────────────────────────────
   bot.use(async (ctx, next) => {
     const userId = ctx.from?.id;

@@ -60,7 +60,7 @@ function BannerLine({ line, t }: { line: string; t: number }) {
 }
 
 /** Pantalla de bienvenida: banner en caja + estado de la sesión. */
-function Welcome({ model: modelOverride }: { model?: string }) {
+function Welcome({ model: modelOverride, safe }: { model?: string; safe?: boolean }) {
   // Datos de sesión, leídos una vez al montar (son lecturas locales baratas).
   const [info] = useState(() => {
     const cfg = loadUserConfig();
@@ -103,10 +103,19 @@ function Welcome({ model: modelOverride }: { model?: string }) {
             <Text color={COLORS.sky}>
               {info.recuerdos} {info.recuerdos === 1 ? "recuerdo" : "recuerdos"}
             </Text>
+            <Text color={COLORS.meta}> · </Text>
+            {safe ? (
+              <Text color={COLORS.sky}>modo seguro</Text>
+            ) : (
+              <Text color={COLORS.warn}>sin permisos ⚡</Text>
+            )}
           </Text>
         </Box>
       </Box>
-      <Text color={COLORS.meta}>  escribe tu encargo y Enter · /salir para terminar</Text>
+      <Text color={COLORS.meta}>
+        {"  escribe tu encargo y Enter · /salir para terminar"}
+        {safe ? "" : " · --safe para confirmar comandos"}
+      </Text>
     </Box>
   );
 }
@@ -122,7 +131,7 @@ interface PendingPermission {
   resolve: (r: PermissionResult) => void;
 }
 
-function App({ model }: { model?: string }) {
+function App({ model, safe }: { model?: string; safe?: boolean }) {
   const { exit } = useApp();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [running, setRunning] = useState(false);
@@ -166,15 +175,22 @@ function App({ model }: { model?: string }) {
         model,
         outputDir,
         resumeSessionId: sessionId.current,
-        permissionMode: "acceptEdits",
-        canUseTool: (toolName, input) =>
-          new Promise<PermissionResult>((resolve) => {
-            const detail =
-              toolName === "Bash" && typeof input.command === "string"
-                ? input.command
-                : JSON.stringify(input).slice(0, 120);
-            setPendingQueue((q) => [...q, { toolName, detail, resolve }]);
-          }),
+        // Por defecto sin confirmaciones (bypass); con --safe se piden.
+        // Ojo: 'acceptEdits' NO dispara canUseTool ni para Bash — hay que usar
+        // 'default' para que la confirmación sea real (verificado en 0.3.x).
+        permissionMode: safe ? "default" : "bypassPermissions",
+        ...(safe
+          ? {
+              canUseTool: (toolName: string, input: Record<string, unknown>) =>
+                new Promise<PermissionResult>((resolve) => {
+                  const detail =
+                    toolName === "Bash" && typeof input.command === "string"
+                      ? input.command
+                      : JSON.stringify(input).slice(0, 120);
+                  setPendingQueue((q) => [...q, { toolName, detail, resolve }]);
+                }),
+            }
+          : {}),
         channelInstructions:
           "Estás en la terminal de Marc, en una sesión interactiva. Markdown ligero.",
       })) {
@@ -218,7 +234,7 @@ function App({ model }: { model?: string }) {
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      <Welcome model={model} />
+      <Welcome model={model} safe={safe} />
 
       {turns.map((t, i) => (
         <Box key={i} marginBottom={1}>
@@ -276,9 +292,11 @@ function App({ model }: { model?: string }) {
         <Box flexDirection="column" borderStyle="round" borderColor={COLORS.warn} paddingX={1}>
           <Text color={COLORS.warn}>
             ⚠ Ares quiere usar {pending.toolName}: <Text bold>{pending.detail}</Text>{" "}
-            <Text color={COLORS.meta}>(Y/n)</Text>
+            <Text color={COLORS.meta}>(y/N)</Text>
           </Text>
+          {/* En modo seguro, Enter a secas deniega: por defecto se protege. */}
           <ConfirmInput
+            defaultChoice="cancel"
             onConfirm={() => resolvePending({ behavior: "allow" })}
             onCancel={() => resolvePending({ behavior: "deny", message: "Marc lo ha denegado." })}
           />
@@ -303,7 +321,7 @@ function App({ model }: { model?: string }) {
   );
 }
 
-export async function runInteractive(opts: { model?: string }): Promise<void> {
-  const { waitUntilExit } = render(<App model={opts.model} />);
+export async function runInteractive(opts: { model?: string; safe?: boolean }): Promise<void> {
+  const { waitUntilExit } = render(<App model={opts.model} safe={opts.safe} />);
   await waitUntilExit();
 }

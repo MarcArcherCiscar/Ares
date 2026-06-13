@@ -10,7 +10,18 @@ function takeFlagValue(long: string, short?: string): string | undefined {
   return value;
 }
 
+function takeFlag(...names: string[]): boolean {
+  const i = args.findIndex((a) => names.includes(a));
+  if (i === -1) return false;
+  args.splice(i, 1);
+  return true;
+}
+
 const model = takeFlagValue("--model", "-m");
+// Por defecto Ares ejecuta sin pedir confirmación (como Claude con
+// --dangerously-skip-permissions). `--safe` reactiva las confirmaciones de
+// comandos para esta sesión.
+const safe = takeFlag("--safe");
 const printPrompt = takeFlagValue("--print", "-p");
 
 if (args.includes("--help") || args.includes("-h")) {
@@ -22,6 +33,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "  ares                     sesión interactiva en el directorio actual",
       '  ares -p "<encargo>"      modo headless: ejecuta y sale (scripts/cron)',
       "  ares -m <modelo>         override del modelo (id o alias)",
+      "  ares --safe              pide confirmación antes de cada comando",
     ].join("\n"),
   );
   process.exit(0);
@@ -36,5 +48,5 @@ if (printPrompt !== undefined) {
   process.exit(await runHeadless({ prompt: printPrompt, model }));
 } else {
   const { runInteractive } = await import("./ui/app.js");
-  await runInteractive({ model });
+  await runInteractive({ model, safe });
 }

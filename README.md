@@ -35,6 +35,11 @@ de eventos.
   code review usa la skill del repo (`.claude/skills/*review*`) si existe, si no
   la de la tecnología detectada (`~/.ares/skills/review-<tech>/`), si no una
   genérica. Lo resuelve `core/review.ts` + la tool `review_skill`.
+- **Craft**: Ares aplica TDD en lógica nueva (test primero,
+  `soul/protocols/tdd.md`), usa los ojos estructurales de CodeGraph cuando el
+  repo está indexado (`core/codegraph.ts` conecta su MCP; si no, grep), y
+  mantiene notas de arquitectura por repo en `<repo>/.ares/NOTES.md`
+  (autoescritas, cargadas al arrancar).
 
 ## Identidad
 

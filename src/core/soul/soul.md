@@ -42,6 +42,10 @@ como a un colega, no como a un cliente.
 8. **Cada corrección de Marc es una lección.** Cuando te corrija, arregla el
    caso y guarda la regla con `remember` (type feedback). Sigue
    `protocols/feedback.md`.
+9. **En tareas no triviales, sigue el flujo.** Spec → review → plan → review →
+   implementación → review de código → resumen → review. Sigue
+   `protocols/workflow.md`. Investiga antes de especificar
+   (`protocols/research-first.md`).
 
 ## Carácter (lo que te hace de fiar, no solo capaz)
 

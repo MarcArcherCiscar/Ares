@@ -1,5 +1,5 @@
 // src/cli/ui/app.tsx
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { render, Box, Text, useApp } from "ink";
 import { TextInput, Spinner, ConfirmInput } from "@inkjs/ui";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -8,6 +8,7 @@ import { join, basename } from "node:path";
 import { runAgent, type PermissionResult, type TodoItem } from "../../core/agent.js";
 import { loadUserConfig } from "../../core/config.js";
 import { Memory } from "../../core/memory.js";
+import { loadSession, saveSession, clearSession } from "../sessions.js";
 import { HELMET } from "./helmet.js";
 
 const VERSION = "v1.0";
@@ -274,19 +275,34 @@ interface PendingPermission {
   resolve: (r: PermissionResult) => void;
 }
 
-function App({ model, safe }: { model?: string; safe?: boolean }) {
+function App({ model, safe, continueSession }: { model?: string; safe?: boolean; continueSession?: boolean }) {
   const { exit } = useApp();
+  const cwd = process.cwd();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState("");
   const [streamText, setStreamText] = useState("");
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [thinking, setThinking] = useState("");
+  const [notice, setNotice] = useState("");
   // Cola: el modelo puede pedir varias tools en paralelo; cada petición espera
   // su turno en vez de machacar a la anterior (cuya promesa nunca resolvería).
   const [pendingQueue, setPendingQueue] = useState<PendingPermission[]>([]);
   const pending = pendingQueue[0] ?? null;
   const sessionId = useRef<string | undefined>(undefined);
+
+  // Al arrancar: si hay conversación guardada en esta carpeta, retómala (con -c)
+  // o avisa de que existe (/retomar para seguirla).
+  useEffect(() => {
+    const s = loadSession(cwd);
+    if (!s) return;
+    if (continueSession) {
+      sessionId.current = s.sessionId;
+      setNotice(`↩️  Retomando la conversación de esta carpeta (último: "${s.lastPrompt}").`);
+    } else {
+      setNotice(`💡 Hay una conversación previa aquí — /retomar para seguirla (último: "${s.lastPrompt}").`);
+    }
+  }, []);
 
   function resolvePending(r: PermissionResult) {
     pending?.resolve(r);
@@ -300,6 +316,24 @@ function App({ model, safe }: { model?: string; safe?: boolean }) {
       exit();
       return;
     }
+    if (trimmed === "/retomar" || trimmed === "/resume") {
+      const s = loadSession(cwd);
+      if (s) {
+        sessionId.current = s.sessionId;
+        setNotice(`↩️  Retomada la conversación previa (último: "${s.lastPrompt}"). Recuerdo el contexto aunque el historial visual esté vacío.`);
+      } else {
+        setNotice("No hay conversación previa guardada en esta carpeta.");
+      }
+      return;
+    }
+    if (trimmed === "/nueva" || trimmed === "/new") {
+      clearSession(cwd);
+      sessionId.current = undefined;
+      setTurns([]);
+      setNotice("🆕 Conversación nueva. Olvidé la anterior de esta carpeta.");
+      return;
+    }
+    setNotice("");
     setTurns((t) => [...t, { role: "user", text: trimmed }]);
     setRunning(true);
     setStatus("pensando…");
@@ -362,6 +396,8 @@ function App({ model, safe }: { model?: string; safe?: boolean }) {
       rmSync(outputDir, { recursive: true, force: true });
     }
     setTurns((t) => [...t, { role: "ares", text: finalText || streamed || "(sin respuesta)" }]);
+    // Persiste la conversación de esta carpeta para poder retomarla tras cerrar.
+    if (sessionId.current) saveSession(cwd, sessionId.current, trimmed);
     setStreamText("");
     setStatus("");
     setThinking("");
@@ -378,6 +414,12 @@ function App({ model, safe }: { model?: string; safe?: boolean }) {
   return (
     <Box flexDirection="column" paddingX={1}>
       <Welcome model={model} safe={safe} />
+
+      {notice && (
+        <Box marginBottom={1}>
+          <Text color={COLORS.meta}>{notice}</Text>
+        </Box>
+      )}
 
       {turns.map((t, i) => (
         <Box key={i} marginBottom={1}>
@@ -466,7 +508,7 @@ function App({ model, safe }: { model?: string; safe?: boolean }) {
   );
 }
 
-export async function runInteractive(opts: { model?: string; safe?: boolean }): Promise<void> {
-  const { waitUntilExit } = render(<App model={opts.model} safe={opts.safe} />);
+export async function runInteractive(opts: { model?: string; safe?: boolean; continueSession?: boolean }): Promise<void> {
+  const { waitUntilExit } = render(<App model={opts.model} safe={opts.safe} continueSession={opts.continueSession} />);
   await waitUntilExit();
 }

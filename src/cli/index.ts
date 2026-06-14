@@ -22,6 +22,8 @@ const model = takeFlagValue("--model", "-m");
 // --dangerously-skip-permissions). `--safe` reactiva las confirmaciones de
 // comandos para esta sesión.
 const safe = takeFlag("--safe");
+// Retoma la conversación previa de esta carpeta (la guardada al cerrar).
+const continueSession = takeFlag("--continue", "-c");
 const printPrompt = takeFlagValue("--print", "-p");
 
 if (args.includes("--help") || args.includes("-h")) {
@@ -33,7 +35,10 @@ if (args.includes("--help") || args.includes("-h")) {
       "  ares                     sesión interactiva en el directorio actual",
       '  ares -p "<encargo>"      modo headless: ejecuta y sale (scripts/cron)',
       "  ares -m <modelo>         override del modelo (id o alias)",
+      "  ares -c                  retoma la conversación previa de esta carpeta",
       "  ares --safe              pide confirmación antes de cada comando",
+      "",
+      "Dentro de la sesión: /retomar (seguir la previa) · /nueva (empezar limpio) · /salir",
     ].join("\n"),
   );
   process.exit(0);
@@ -48,5 +53,5 @@ if (printPrompt !== undefined) {
   process.exit(await runHeadless({ prompt: printPrompt, model }));
 } else {
   const { runInteractive } = await import("./ui/app.js");
-  await runInteractive({ model, safe });
+  await runInteractive({ model, safe, continueSession });
 }

@@ -183,6 +183,25 @@ Authentication flows through the `claude` binary's subscription session (or `CLA
 
 ---
 
+## Keeping it alive (macOS)
+
+To keep the Telegram bot running while your Mac is locked, run it under
+[PM2](https://pm2.keymetrics.io) wrapped in `caffeinate` (config in
+`ecosystem.config.cjs`):
+
+```bash
+npm i -g pm2
+npm run build
+pm2 start ecosystem.config.cjs && pm2 save
+pm2 startup            # prints a sudo command — run it once for auto-start on boot
+```
+
+`caffeinate -is` prevents idle/AC sleep while the bot runs, and PM2 restarts it
+on crash and on reboot. Locking the screen keeps processes alive; **closing a
+MacBook lid still forces sleep** (leave it open, or run on always-on hardware).
+For true 24/7 independent of your laptop, deploy the bot on a server — note it
+then works on *that* machine's repos, not your local ones.
+
 ## Security
 
 Ares can run shell commands and modify files autonomously — that's the point, and the risk.

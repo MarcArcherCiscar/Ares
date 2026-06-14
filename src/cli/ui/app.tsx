@@ -1,14 +1,14 @@
 // src/cli/ui/app.tsx
 import React, { useState, useRef, useEffect } from "react";
 import { render, Box, Text, useApp } from "ink";
-import { TextInput, Spinner, ConfirmInput } from "@inkjs/ui";
+import { TextInput, Spinner, ConfirmInput, Select } from "@inkjs/ui";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, basename } from "node:path";
 import { runAgent, type PermissionResult, type TodoItem } from "../../core/agent.js";
 import { loadUserConfig } from "../../core/config.js";
 import { Memory } from "../../core/memory.js";
-import { loadSession, saveSession, clearSession } from "../sessions.js";
+import { recordTurn, listSessions, latestSession } from "../sessions.js";
 import { HELMET } from "./helmet.js";
 
 const VERSION = "v1.0";
@@ -275,7 +275,17 @@ interface PendingPermission {
   resolve: (r: PermissionResult) => void;
 }
 
-function App({ model, safe, continueSession }: { model?: string; safe?: boolean; continueSession?: boolean }) {
+function App({
+  model,
+  safe,
+  continueSession,
+  resumePick,
+}: {
+  model?: string;
+  safe?: boolean;
+  continueSession?: boolean;
+  resumePick?: boolean;
+}) {
   const { exit } = useApp();
   const cwd = process.cwd();
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -285,24 +295,34 @@ function App({ model, safe, continueSession }: { model?: string; safe?: boolean;
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [thinking, setThinking] = useState("");
   const [notice, setNotice] = useState("");
+  const [picking, setPicking] = useState(false);
   // Cola: el modelo puede pedir varias tools en paralelo; cada petición espera
   // su turno en vez de machacar a la anterior (cuya promesa nunca resolvería).
   const [pendingQueue, setPendingQueue] = useState<PendingPermission[]>([]);
   const pending = pendingQueue[0] ?? null;
   const sessionId = useRef<string | undefined>(undefined);
 
-  // Al arrancar: si hay conversación guardada en esta carpeta, retómala (con -c)
-  // o avisa de que existe (/retomar para seguirla).
+  // Al arrancar: -r abre el selector; -c retoma la última; si hay historial,
+  // avisa de cómo elegir.
   useEffect(() => {
-    const s = loadSession(cwd);
-    if (!s) return;
-    if (continueSession) {
-      sessionId.current = s.sessionId;
-      setNotice(`↩️  Retomando la conversación de esta carpeta (último: "${s.lastPrompt}").`);
+    const sessions = listSessions(cwd);
+    if (sessions.length === 0) return;
+    if (resumePick) {
+      setPicking(true);
+    } else if (continueSession) {
+      sessionId.current = sessions[0].sessionId;
+      setNotice(`↩️  Retomando la última conversación de esta carpeta (${sessions[0].lastPrompt}).`);
     } else {
-      setNotice(`💡 Hay una conversación previa aquí — /retomar para seguirla (último: "${s.lastPrompt}").`);
+      const n = sessions.length;
+      setNotice(`💡 ${n} conversación${n > 1 ? "es" : ""} aquí — /sesiones para elegir, /retomar para la última.`);
     }
   }, []);
+
+  function resume(sid: string, label: string) {
+    sessionId.current = sid;
+    setPicking(false);
+    setNotice(`↩️  Retomada: "${label}". Recuerdo el contexto aunque el historial visual esté vacío.`);
+  }
 
   function resolvePending(r: PermissionResult) {
     pending?.resolve(r);
@@ -316,21 +336,21 @@ function App({ model, safe, continueSession }: { model?: string; safe?: boolean;
       exit();
       return;
     }
+    if (trimmed === "/sesiones" || trimmed === "/sessions") {
+      if (listSessions(cwd).length === 0) setNotice("No hay conversaciones guardadas en esta carpeta.");
+      else setPicking(true);
+      return;
+    }
     if (trimmed === "/retomar" || trimmed === "/resume") {
-      const s = loadSession(cwd);
-      if (s) {
-        sessionId.current = s.sessionId;
-        setNotice(`↩️  Retomada la conversación previa (último: "${s.lastPrompt}"). Recuerdo el contexto aunque el historial visual esté vacío.`);
-      } else {
-        setNotice("No hay conversación previa guardada en esta carpeta.");
-      }
+      const s = latestSession(cwd);
+      if (s) resume(s.sessionId, s.lastPrompt);
+      else setNotice("No hay conversación previa guardada en esta carpeta.");
       return;
     }
     if (trimmed === "/nueva" || trimmed === "/new") {
-      clearSession(cwd);
       sessionId.current = undefined;
       setTurns([]);
-      setNotice("🆕 Conversación nueva. Olvidé la anterior de esta carpeta.");
+      setNotice("🆕 Conversación nueva (las anteriores siguen en /sesiones).");
       return;
     }
     setNotice("");
@@ -397,7 +417,7 @@ function App({ model, safe, continueSession }: { model?: string; safe?: boolean;
     }
     setTurns((t) => [...t, { role: "ares", text: finalText || streamed || "(sin respuesta)" }]);
     // Persiste la conversación de esta carpeta para poder retomarla tras cerrar.
-    if (sessionId.current) saveSession(cwd, sessionId.current, trimmed);
+    if (sessionId.current) recordTurn(cwd, sessionId.current, trimmed);
     setStreamText("");
     setStatus("");
     setThinking("");
@@ -475,7 +495,33 @@ function App({ model, safe, continueSession }: { model?: string; safe?: boolean;
         </Box>
       )}
 
-      {pending ? (
+      {picking ? (
+        <Box flexDirection="column" borderStyle="round" borderColor={COLORS.agent} paddingX={1}>
+          <Text color={COLORS.agent} bold>
+            Elige una conversación de esta carpeta:
+          </Text>
+          <Select
+            options={[
+              { label: "➕ nueva conversación", value: "__new__" },
+              ...listSessions(cwd).map((s) => ({
+                label: `${new Date(s.updatedAt).toLocaleString()} · ${s.firstPrompt.slice(0, 48)}`,
+                value: s.sessionId,
+              })),
+            ]}
+            onChange={(value) => {
+              if (value === "__new__") {
+                sessionId.current = undefined;
+                setTurns([]);
+                setPicking(false);
+                setNotice("🆕 Conversación nueva.");
+              } else {
+                const s = listSessions(cwd).find((x) => x.sessionId === value);
+                resume(value, s?.lastPrompt ?? "conversación");
+              }
+            }}
+          />
+        </Box>
+      ) : pending ? (
         <Box flexDirection="column" borderStyle="round" borderColor={COLORS.warn} paddingX={1}>
           <Text color={COLORS.warn}>
             ⚠ Ares quiere usar {pending.toolName}: <Text bold>{pending.detail}</Text>{" "}
@@ -508,7 +554,14 @@ function App({ model, safe, continueSession }: { model?: string; safe?: boolean;
   );
 }
 
-export async function runInteractive(opts: { model?: string; safe?: boolean; continueSession?: boolean }): Promise<void> {
-  const { waitUntilExit } = render(<App model={opts.model} safe={opts.safe} continueSession={opts.continueSession} />);
+export async function runInteractive(opts: {
+  model?: string;
+  safe?: boolean;
+  continueSession?: boolean;
+  resumePick?: boolean;
+}): Promise<void> {
+  const { waitUntilExit } = render(
+    <App model={opts.model} safe={opts.safe} continueSession={opts.continueSession} resumePick={opts.resumePick} />,
+  );
   await waitUntilExit();
 }

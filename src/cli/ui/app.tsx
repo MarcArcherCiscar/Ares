@@ -120,31 +120,81 @@ function Welcome({ model: modelOverride, safe }: { model?: string; safe?: boolea
   );
 }
 
-// URLs http(s) y hosts locales con puerto (localhost:5123, 127.0.0.1:8080/ruta).
-const LINK_RE = /(https?:\/\/[^\s)]+|(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/[^\s)]*)?)/g;
-
 /** Envuelve una URL en un hyperlink de terminal (OSC 8): clicable donde el emulador lo soporte. */
 function osc8(href: string, label: string): string {
   return `]8;;${href}${label}]8;;`;
 }
 
-/** Texto de Ares con los enlaces clicables (Spark + subrayado). El resto, color normal. */
-function Linkified({ text, color }: { text: string; color?: string }) {
-  const parts = text.split(LINK_RE);
+// Inline: `código`, **negrita**/__negrita__, y enlaces (OSC8 clicable). Un solo
+// pase de tokenizado; lo que no casa, texto normal.
+const INLINE_RE =
+  /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(https?:\/\/[^\s)]+|(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/[^\s)]*)?)/g;
+
+function inlineNodes(text: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let last = 0;
+  let k = 0;
+  let m: RegExpExecArray | null;
+  INLINE_RE.lastIndex = 0;
+  while ((m = INLINE_RE.exec(text)) !== null) {
+    if (m.index > last) nodes.push(text.slice(last, m.index));
+    const tok = m[0];
+    if (m[1]) {
+      nodes.push(
+        <Text key={k++} color={COLORS.spark}>
+          {tok.slice(1, -1)}
+        </Text>,
+      );
+    } else if (m[2] || m[3]) {
+      nodes.push(
+        <Text key={k++} bold>
+          {tok.slice(2, -2)}
+        </Text>,
+      );
+    } else {
+      const href = tok.startsWith("http") ? tok : `http://${tok}`;
+      nodes.push(
+        <Text key={k++} color={COLORS.spark} underline>
+          {osc8(href, tok)}
+        </Text>,
+      );
+    }
+    last = m.index + tok.length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+
+/** Render de markdown ligero para la TUI: títulos, viñetas, negrita, código y enlaces. */
+function RichText({ text, color }: { text: string; color?: string }) {
   return (
-    <Text color={color}>
-      {parts.map((part, i) => {
-        if (i % 2 === 1) {
-          const href = part.startsWith("http") ? part : `http://${part}`;
+    <Box flexDirection="column">
+      {text.split("\n").map((line, i) => {
+        const header = /^#{1,6}\s+(.*)$/.exec(line);
+        if (header) {
           return (
-            <Text key={i} color={COLORS.spark} underline>
-              {osc8(href, part)}
+            <Text key={i} color={COLORS.agent} bold>
+              {inlineNodes(header[1])}
             </Text>
           );
         }
-        return part;
+        const bullet = /^(\s*)[-*]\s+(.*)$/.exec(line);
+        if (bullet) {
+          return (
+            <Text key={i} color={color}>
+              {bullet[1]}
+              <Text color={COLORS.sky}>• </Text>
+              {inlineNodes(bullet[2])}
+            </Text>
+          );
+        }
+        return (
+          <Text key={i} color={color}>
+            {inlineNodes(line)}
+          </Text>
+        );
       })}
-    </Text>
+    </Box>
   );
 }
 
@@ -272,7 +322,7 @@ function App({ model, safe }: { model?: string; safe?: boolean }) {
           {t.role === "user" ? (
             <Text color={COLORS.user}>{t.text}</Text>
           ) : (
-            <Linkified text={t.text} color={t.text.startsWith("❌") ? COLORS.error : undefined} />
+            <RichText text={t.text} color={t.text.startsWith("❌") ? COLORS.error : undefined} />
           )}
         </Box>
       ))}

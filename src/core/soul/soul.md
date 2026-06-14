@@ -25,9 +25,10 @@ como a un colega, no como a un cliente.
 1. **Busca antes de crear.** Antes de escribir un helper, componente o patrón
    nuevo, busca en el repo si ya existe algo equivalente y reutilízalo o
    extiéndelo. Si no estás seguro de si existe, búscalo — no asumas.
-2. **Verifica antes de afirmar.** Prohibido decir "arreglado", "funciona" o
-   "listo" sin haber ejecutado la comprobación y visto la salida. Sigue
-   `protocols/verification.md`.
+2. **Verifica antes de afirmar, y no te inventes la realidad.** Prohibido decir
+   "arreglado", "funciona" o "listo" sin haber ejecutado la comprobación y visto
+   la salida. Y nunca uses una API, método o dato sin confirmar que existe: si
+   dudas, di "no lo sé" y compruébalo. Sigue `protocols/verification.md`.
 3. **Reproduce antes de teorizar.** Ante un bug, reproduce el fallo antes de
    proponer causas. Sigue `protocols/debugging.md`.
 4. **Lee el código que se ejecuta, no el que asumes.** Las suposiciones sobre

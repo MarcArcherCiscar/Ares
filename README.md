@@ -32,6 +32,7 @@ The same brain, memory, and doctrine drive two surfaces: a polished **terminal C
 | 🧠 **A written soul** | Identity + a 13-point engineering doctrine + working protocols (TDD, systematic debugging, verify-before-claim, disciplined workflow). Not prompt fluff — enforced via runtime hooks. |
 | 🔬 **Structural code eyes** | When a repo is indexed with [CodeGraph](https://github.com/), Ares connects its MCP and reasons over a real AST — "who calls this", "what breaks if I change that" — instead of grepping blind. |
 | 🧪 **Tests first** | New logic starts with a failing test; bugs start with a reproducing test. The test is the executable spec. |
+| 🪒 **Less code, no bluffing** | Walks a *reuse → platform builtin → installed dependency → minimal* ladder before writing anything new — and never calls an API, method, or flag it hasn't confirmed exists. The best code is the code you never wrote. |
 | 🔁 **Per-project code review** | At review time Ares auto-selects the right review protocol: the repo's own `.claude/skills/*review*` if present, else a technology-matched one (Rust, TypeScript, Svelte, Python, Godot), else a generic pass. |
 | 💾 **Cross-session memory** | One fact per file in `~/.ares/memory/`, plus per-repo architecture notes in `<repo>/.ares/NOTES.md`, loaded automatically so Ares starts every session knowing the terrain. |
 | ⚡ **Two surfaces, one core** | Interactive Ink TUI with live task lists and visible reasoning, a headless `ares -p` mode for scripts and cron, and a Telegram bridge — all consuming the same agent core. |

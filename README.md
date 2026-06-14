@@ -29,10 +29,11 @@ The same brain, memory, and doctrine drive two surfaces: a polished **terminal C
 
 | | |
 |---|---|
-| 🧠 **A written soul** | Identity + a 13-point engineering doctrine + working protocols (TDD, systematic debugging, verify-before-claim, disciplined workflow). Not prompt fluff — enforced via runtime hooks. |
+| 🧠 **A written soul** | Identity + a 14-point engineering doctrine + working protocols (TDD, systematic debugging, verify-before-claim, disciplined workflow). Not prompt fluff — enforced via runtime hooks. |
 | 🔬 **Structural code eyes** | When a repo is indexed with [CodeGraph](https://github.com/), Ares connects its MCP and reasons over a real AST — "who calls this", "what breaks if I change that" — instead of grepping blind. |
 | 🧪 **Tests first** | New logic starts with a failing test; bugs start with a reproducing test. The test is the executable spec. |
 | 🪒 **Less code, no bluffing** | Walks a *reuse → platform builtin → installed dependency → minimal* ladder before writing anything new — and never calls an API, method, or flag it hasn't confirmed exists. The best code is the code you never wrote. |
+| 🕷️ **Scraping, batteries included** | [Scrapling](https://scrapling.readthedocs.io) is the default for any web extraction (anti-bot bypass, stealth, spiders). The skill ships vendored; `npm run setup` installs the library in an isolated `~/.ares/venv` — zero manual wiring. |
 | 🔁 **Per-project code review** | At review time Ares auto-selects the right review protocol: the repo's own `.claude/skills/*review*` if present, else a technology-matched one (Rust, TypeScript, Svelte, Python, Godot), else a generic pass. |
 | 💾 **Cross-session memory** | One fact per file in `~/.ares/memory/`, plus per-repo architecture notes in `<repo>/.ares/NOTES.md`, loaded automatically so Ares starts every session knowing the terrain. |
 | ⚡ **Two surfaces, one core** | Interactive Ink TUI with live task lists and visible reasoning, a headless `ares -p` mode for scripts and cron, and a Telegram bridge — all consuming the same agent core. |
@@ -105,7 +106,7 @@ flowchart TD
 ```
 
 - **`core/agent.ts`** — the single gateway to the SDK's `query()`. Composes the system prompt (soul + memory + project notes), wires the in-process toolbelt and (when available) the CodeGraph MCP, runs adaptive thinking, and translates the raw stream into channel-agnostic events (`status` · `delta` · `thinking` · `todos` · `result`).
-- **`core/soul/`** — `soul.md` (identity + doctrine) and `protocols/` (debugging, verification, search-first, step-by-step, feedback, disagree, workflow, research-first, tdd, structural-eyes, project-notes, engineering-judgment). Loaded into every session.
+- **`core/soul/`** — `soul.md` (identity + doctrine) and `protocols/` (debugging, verification, search-first, step-by-step, feedback, disagree, workflow, research-first, tdd, structural-eyes, project-notes, engineering-judgment, scraping). Loaded into every session.
 - **`core/memory.ts`** — persistent, file-based memory with a one-line index injected at startup.
 - **`core/review.ts`** — three-tier discovery of the code-review protocol for the current repo.
 - **`core/codegraph.ts`** — detects whether CodeGraph is indexed and attaches its MCP server.
@@ -122,7 +123,15 @@ git clone https://github.com/MarcArcherCiscar/Ares.git && cd Ares
 npm install
 npm run build
 npm link            # makes `ares` available everywhere
+npm run setup       # optional: sets up Scrapling in an isolated ~/.ares/venv
 ```
+
+`npm run setup` configures Ares's optional capabilities — currently
+[Scrapling](https://scrapling.readthedocs.io), Ares's default web-scraping engine.
+It creates an isolated virtualenv at `~/.ares/venv` and installs Scrapling there
+(no system Python pollution, no PEP 668 issues). The *how-to-use* skill ships
+vendored inside Ares, so scraping works the same on any machine that runs setup —
+nothing to clone or wire by hand.
 
 ### Use it in the terminal
 

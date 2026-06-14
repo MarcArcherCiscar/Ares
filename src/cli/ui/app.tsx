@@ -165,37 +165,102 @@ function inlineNodes(text: string): React.ReactNode[] {
   return nodes;
 }
 
-/** Render de markdown ligero para la TUI: títulos, viñetas, negrita, código y enlaces. */
-function RichText({ text, color }: { text: string; color?: string }) {
+/** Longitud visible (ignora los marcadores de markdown) para alinear columnas. */
+function plainLen(s: string): number {
+  return s.replace(/\*\*|__|`/g, "").length;
+}
+
+/** Parte una fila de tabla `| a | b |` en celdas, quitando los pipes de los bordes. */
+function tableCells(line: string): string[] {
+  const cells = line.trim().replace(/^\||\|$/g, "").split("|");
+  return cells.map((c) => c.trim());
+}
+
+/** ¿Es la fila separadora `|---|:--:|`? */
+function isTableSeparator(line: string): boolean {
+  if (!line.includes("|")) return false;
+  const cells = tableCells(line);
+  return cells.length > 0 && cells.every((c) => /^:?-{1,}:?$/.test(c));
+}
+
+/** Una fila de tabla alineada: celdas con su formato inline + relleno a ancho de columna. */
+function tableRow(cells: string[], widths: number[], opts: { bold?: boolean; color?: string }, key: number) {
   return (
-    <Box flexDirection="column">
-      {text.split("\n").map((line, i) => {
-        const header = /^#{1,6}\s+(.*)$/.exec(line);
-        if (header) {
-          return (
-            <Text key={i} color={COLORS.agent} bold>
-              {inlineNodes(header[1])}
-            </Text>
-          );
-        }
-        const bullet = /^(\s*)[-*]\s+(.*)$/.exec(line);
-        if (bullet) {
-          return (
-            <Text key={i} color={color}>
-              {bullet[1]}
-              <Text color={COLORS.sky}>• </Text>
-              {inlineNodes(bullet[2])}
-            </Text>
-          );
-        }
+    <Text key={key} color={opts.color} bold={opts.bold}>
+      {widths.map((w, c) => {
+        const cell = cells[c] ?? "";
+        const pad = " ".repeat(Math.max(0, w - plainLen(cell)));
+        const gutter = c < widths.length - 1 ? "  " : "";
         return (
-          <Text key={i} color={color}>
-            {inlineNodes(line)}
+          <Text key={c}>
+            {inlineNodes(cell)}
+            {pad + gutter}
           </Text>
         );
       })}
-    </Box>
+    </Text>
   );
+}
+
+/** Render de markdown ligero para la TUI: tablas, títulos, viñetas, negrita, código y enlaces. */
+function RichText({ text, color }: { text: string; color?: string }) {
+  const lines = text.split("\n");
+  const out: React.ReactNode[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Tabla: fila con pipes seguida de una fila separadora.
+    if (line.includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+      const header = tableCells(line);
+      const body: string[][] = [];
+      let j = i + 2;
+      for (; j < lines.length && lines[j].includes("|") && !isTableSeparator(lines[j]); j++) {
+        body.push(tableCells(lines[j]));
+      }
+      const ncols = Math.max(header.length, ...body.map((r) => r.length));
+      const widths = Array.from({ length: ncols }, (_, c) =>
+        Math.max(plainLen(header[c] ?? ""), ...body.map((r) => plainLen(r[c] ?? ""))),
+      );
+      out.push(
+        <Box key={i} flexDirection="column" marginY={0}>
+          {tableRow(header, widths, { bold: true, color: COLORS.agent }, 0)}
+          <Text color={COLORS.meta}>{widths.map((w) => "─".repeat(w)).join("──")}</Text>
+          {body.map((r, k) => tableRow(r, widths, { color }, k + 1))}
+        </Box>,
+      );
+      i = j - 1;
+      continue;
+    }
+
+    const header = /^#{1,6}\s+(.*)$/.exec(line);
+    if (header) {
+      out.push(
+        <Text key={i} color={COLORS.agent} bold>
+          {inlineNodes(header[1])}
+        </Text>,
+      );
+      continue;
+    }
+    const bullet = /^(\s*)[-*]\s+(.*)$/.exec(line);
+    if (bullet) {
+      out.push(
+        <Text key={i} color={color}>
+          {bullet[1]}
+          <Text color={COLORS.sky}>• </Text>
+          {inlineNodes(bullet[2])}
+        </Text>,
+      );
+      continue;
+    }
+    out.push(
+      <Text key={i} color={color}>
+        {inlineNodes(line)}
+      </Text>,
+    );
+  }
+
+  return <Box flexDirection="column">{out}</Box>;
 }
 
 interface Turn {

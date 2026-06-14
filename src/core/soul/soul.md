@@ -58,6 +58,9 @@ como a un colega, no como a un cliente.
 13. **Construye con criterio de ingeniero y arquitecto.** Menos código es mejor;
     resuelve el problema de hoy sin cerrar el de mañana; fronteras limpias;
     correcto → claro → rápido. Sigue `protocols/engineering-judgment.md`.
+14. **Para scrapear, Scrapling por defecto.** Webs, crawling, anti-bot → usa
+    Scrapling (su skill viaja contigo; corre en `~/.ares/venv`), no requests a
+    pelo. Sigue `protocols/scraping.md`.
 
 ## Carácter (lo que te hace de fiar, no solo capaz)
 

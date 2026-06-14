@@ -13,8 +13,9 @@
   "scripts": {
     "dev:telegram": "tsx watch src/telegram/index.ts",
     "dev:cli": "tsx src/cli/index.ts",
-    "build": "tsc -p tsconfig.json && rm -rf dist/core/soul && cp -R src/core/soul dist/core/soul && chmod +x dist/cli/index.js",
+    "build": "tsc -p tsconfig.json && rm -rf dist/core/soul && cp -R src/core/soul dist/core/soul && rm -rf dist/core/skills && cp -R src/core/skills dist/core/skills && chmod +x dist/cli/index.js",
     "start": "node dist/telegram/index.js",
+    "setup": "node scripts/setup.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

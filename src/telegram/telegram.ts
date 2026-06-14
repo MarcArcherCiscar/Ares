@@ -1,4 +1,4 @@
-import { Bot, InputFile, type CommandContext, type Context } from "grammy";
+import { Bot, InputFile, InlineKeyboard, type CommandContext, type Context } from "grammy";
 import { mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { AresConfig } from "./config.js";
@@ -85,6 +85,7 @@ export function createBot(config: AresConfig, store: Store): Bot {
         "/sessions — your per-project conversations\n" +
         "/rescan — refresh discovered projects\n" +
         "/new — fresh conversation for the current project\n" +
+        "/historial — elige qué conversación previa del proyecto retomar\n" +
         "/status — current model/project/session\n" +
         "/model <opus|sonnet|haiku|id> — set the model\n" +
         "/schedule <m h dom mon dow> <prompt> — recurring task\n" +
@@ -98,7 +99,39 @@ export function createBot(config: AresConfig, store: Store): Bot {
     const current = store.current(ctx.chat.id);
     if (!current) return ctx.reply("Open a project first with /open <name>.");
     store.clearSession(ctx.chat.id, current.cwd);
-    return ctx.reply(`🧹 Fresh conversation for "${current.name}".`);
+    return ctx.reply(`🧹 Nueva conversación para "${current.name}" (las anteriores siguen en /historial).`);
+  });
+
+  // /historial — elige qué conversación previa del proyecto actual retomar.
+  bot.command(["historial", "history"], (ctx) => {
+    if (!ctx.chat) return;
+    const current = store.current(ctx.chat.id);
+    if (!current) return ctx.reply("Abre un proyecto primero con /open <nombre>.");
+    const convs = store.listConversations(ctx.chat.id, current.cwd);
+    if (convs.length === 0) return ctx.reply(`No hay conversaciones guardadas en "${current.name}" todavía.`);
+    const kb = new InlineKeyboard();
+    for (const c of convs.slice(0, 12)) {
+      const when = new Date(c.updatedAt).toLocaleString();
+      const label = `${when} · ${c.lastPrompt.slice(0, 40)}`;
+      kb.text(label, `resume:${c.sessionId}`).row();
+    }
+    return ctx.reply(`Conversaciones de "${current.name}" — toca una para retomarla:`, { reply_markup: kb });
+  });
+
+  // Botón de /historial: retoma la conversación elegida en el proyecto actual.
+  bot.callbackQuery(/^resume:(.+)$/, async (ctx) => {
+    const sessionId = ctx.match[1];
+    const current = store.current(ctx.chat?.id ?? 0);
+    if (!current) {
+      await ctx.answerCallbackQuery({ text: "Abre un proyecto primero." });
+      return;
+    }
+    const conv = store.listConversations(ctx.chat!.id, current.cwd).find((c) => c.sessionId === sessionId);
+    store.setSession(ctx.chat!.id, current.cwd, sessionId);
+    await ctx.answerCallbackQuery({ text: "Conversación retomada ↩️" });
+    await ctx.reply(
+      `↩️ Retomada en "${current.name}"${conv ? ` (último: ${conv.lastPrompt.slice(0, 60)})` : ""}. Sigue escribiendo.`,
+    );
   });
 
   bot.command("status", (ctx) => {
@@ -264,7 +297,10 @@ export function createBot(config: AresConfig, store: Store): Bot {
         } else if (event.type === "text") {
           renderer.appendText(event.text);
         } else if (event.type === "result") {
-          if (event.sessionId) store.setSession(chatId, session.cwd, event.sessionId);
+          if (event.sessionId) {
+            store.setSession(chatId, session.cwd, event.sessionId);
+            store.recordConversation(chatId, session.cwd, event.sessionId, prompt);
+          }
           await renderer.finish(event.isError, event.text);
         }
       }
@@ -302,6 +338,7 @@ export function createBot(config: AresConfig, store: Store): Bot {
       { command: "projects", description: "List configured + discovered projects" },
       { command: "sessions", description: "Your per-project conversations" },
       { command: "new", description: "Fresh conversation for the current project" },
+      { command: "historial", description: "Elige qué conversación previa retomar" },
       { command: "status", description: "Show model/project/session" },
       { command: "model", description: "Set the model" },
       { command: "schedules", description: "List scheduled tasks" },

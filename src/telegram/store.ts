@@ -13,6 +13,14 @@ export interface ProjectSession {
   updatedAt: string;
 }
 
+/** Una conversación del historial de un proyecto (para poder elegir cuál retomar). */
+export interface Conversation {
+  sessionId: string;
+  firstPrompt: string;
+  lastPrompt: string;
+  updatedAt: string;
+}
+
 /** Persisted per-chat state: a model and one conversation per project. */
 export interface ChatRecord {
   /** Model override for this chat (falls back to config default). */
@@ -21,6 +29,8 @@ export interface ChatRecord {
   currentCwd?: string;
   /** Per-project conversation threads, keyed by cwd. */
   projects: Record<string, ProjectSession>;
+  /** Historial de conversaciones por proyecto (cwd → lista), para retomar. */
+  conversations?: Record<string, Conversation[]>;
 }
 
 /** A recurring scheduled task. */
@@ -149,6 +159,28 @@ export class Store {
     return Object.values(this.getChat(chatId).projects).sort((a, b) =>
       b.updatedAt.localeCompare(a.updatedAt),
     );
+  }
+
+  /** Registra un turno en el historial de conversaciones del proyecto (upsert por sessionId). */
+  recordConversation(chatId: number, cwd: string, sessionId: string, prompt: string): void {
+    this.mutate(chatId, (rec) => {
+      const all = rec.conversations ?? (rec.conversations = {});
+      const list = all[cwd] ?? (all[cwd] = []);
+      const now = new Date().toISOString();
+      const existing = list.find((c) => c.sessionId === sessionId);
+      if (existing) {
+        existing.lastPrompt = prompt;
+        existing.updatedAt = now;
+      } else {
+        list.push({ sessionId, firstPrompt: prompt, lastPrompt: prompt, updatedAt: now });
+      }
+    });
+  }
+
+  /** Conversaciones de un proyecto, de la más reciente a la más antigua. */
+  listConversations(chatId: number, cwd: string): Conversation[] {
+    const list = this.getChat(chatId).conversations?.[cwd] ?? [];
+    return [...list].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
   listSchedules(chatId?: number): ScheduleRecord[] {

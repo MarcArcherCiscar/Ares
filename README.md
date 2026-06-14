@@ -6,59 +6,59 @@
 
 ### *Programa. Recuerda. No miente.*
 
-**A personal AI software engineer with a soul.** Built on the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript), Ares brings the discipline of a senior engineer to your terminal and your phone — it writes tests first, reviews its own code, remembers your projects, and tells you the truth when something breaks.
+**Un ingeniero de software personal con alma.** Construido sobre el [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript), Ares lleva la disciplina de un senior a tu terminal y a tu móvil: escribe los tests primero, revisa su propio código, recuerda tus proyectos y te dice la verdad cuando algo se rompe.
 
 </div>
 
 ---
 
-## What is Ares?
+## ¿Qué es Ares?
 
-Ares is not a chatbot wrapper. It's an autonomous coding agent given a **persistent identity and an engineering doctrine** — the habits that separate a competent developer from a world-class one, encoded so the model can't shortcut them:
+Ares no es un wrapper de chatbot. Es un agente de programación autónomo con una **identidad persistente y una doctrina de ingeniería** — los hábitos que separan a un dev competente de uno de primer nivel, codificados para que el modelo no pueda saltárselos:
 
-- It **searches before it creates**, **reproduces before it theorizes**, and **verifies before it claims** anything works.
-- It follows a **disciplined workflow** — spec → review → plan → review → implementation → review → summary → review — on any non-trivial task.
-- It **disagrees with you** when the evidence says you're wrong, instead of telling you what you want to hear.
-- It **remembers** — who you are, your preferences, and the architecture gotchas of every repo it touches.
+- **Busca antes de crear**, **reproduce antes de teorizar** y **verifica antes de afirmar** que algo funciona.
+- Sigue un **flujo disciplinado** — spec → review → plan → review → implementación → review → resumen → review — en cualquier tarea no trivial.
+- **Te lleva la contraria** cuando la evidencia dice que te equivocas, en vez de decirte lo que quieres oír.
+- **Recuerda**: quién eres, tus preferencias y los campos minados de cada repo que toca.
 
-The same brain, memory, and doctrine drive two surfaces: a polished **terminal CLI** and a **Telegram bot** you can drive from your pocket.
+El mismo cerebro, memoria y doctrina mueven dos canales: una **CLI de terminal** cuidada y un **bot de Telegram** que llevas en el bolsillo.
 
 ---
 
-## Highlights
+## Lo que lo hace distinto
 
 | | |
 |---|---|
-| 🧠 **A written soul** | Identity + a 14-point engineering doctrine + working protocols (TDD, systematic debugging, verify-before-claim, disciplined workflow). Not prompt fluff — enforced via runtime hooks. |
-| 🔬 **Structural code eyes** | When a repo is indexed with [CodeGraph](https://github.com/), Ares connects its MCP and reasons over a real AST — "who calls this", "what breaks if I change that" — instead of grepping blind. |
-| 🧪 **Tests first** | New logic starts with a failing test; bugs start with a reproducing test. The test is the executable spec. |
-| 🪒 **Less code, no bluffing** | Walks a *reuse → platform builtin → installed dependency → minimal* ladder before writing anything new — and never calls an API, method, or flag it hasn't confirmed exists. The best code is the code you never wrote. |
-| 🕷️ **Scraping, batteries included** | [Scrapling](https://scrapling.readthedocs.io) is the default for any web extraction (anti-bot bypass, stealth, spiders). The skill ships vendored; `npm run setup` installs the library in an isolated `~/.ares/venv` — zero manual wiring. |
-| 🔁 **Per-project code review** | At review time Ares auto-selects the right review protocol: the repo's own `.claude/skills/*review*` if present, else a technology-matched one (Rust, TypeScript, Svelte, Python, Godot), else a generic pass. |
-| 💾 **Cross-session memory** | One fact per file in `~/.ares/memory/`, plus per-repo architecture notes in `<repo>/.ares/NOTES.md`, loaded automatically so Ares starts every session knowing the terrain. |
-| ⚡ **Two surfaces, one core** | Interactive Ink TUI with live task lists and visible reasoning, a headless `ares -p` mode for scripts and cron, and a Telegram bridge — all consuming the same agent core. |
-| 🛡️ **Safety by design** | Allowlisted Telegram access, opt-in command confirmations (`--safe`), and a character that treats its own work as the most suspicious in the room. |
+| 🧠 **Un alma escrita** | Identidad + doctrina de ingeniería de 14 puntos + protocolos de trabajo (TDD, debugging sistemático, verificar antes de afirmar, flujo disciplinado). No es relleno de prompt: se refuerza con hooks en tiempo de ejecución. |
+| 🔬 **Ojos estructurales del código** | Cuando un repo está indexado con [CodeGraph](https://github.com/), Ares conecta su MCP y razona sobre un AST real — "quién llama a esto", "qué rompo si cambio aquello" — en vez de hacer grep a ciegas. |
+| 🧪 **Tests primero** | La lógica nueva empieza por un test que falla; los bugs por un test que los reproduce. El test es la especificación ejecutable. |
+| 🪒 **Menos código, sin farolear** | Baja una escalera *reutilizar → plataforma → dependencia instalada → mínimo* antes de escribir nada nuevo — y nunca llama a una API, método o flag sin confirmar que existe. El mejor código es el que no escribes. |
+| 🕷️ **Scraping de serie** | [Scrapling](https://scrapling.readthedocs.io) es el motor por defecto para extraer de la web (bypass anti-bot, sigilo, spiders). La skill viaja vendorizada; `npm run setup` instala la librería en un `~/.ares/venv` aislado — cero configuración manual. |
+| 🔁 **Code review por proyecto** | A la hora de revisar, Ares elige el protocolo correcto: la skill propia del repo (`.claude/skills/*review*`) si existe, si no la de la tecnología detectada (Rust, TypeScript, Svelte, Python, Godot), si no una genérica. |
+| 💾 **Memoria entre sesiones** | Un hecho por archivo en `~/.ares/memory/`, más notas de arquitectura por repo en `<repo>/.ares/NOTES.md`, cargadas solas para que Ares arranque conociendo el terreno. Las conversaciones también se retoman (terminal y Telegram). |
+| ⚡ **Dos canales, un núcleo** | TUI interactiva con lista de tareas en vivo y razonamiento a la vista, modo headless `ares -p` para scripts y cron, y el puente de Telegram — todo consumiendo el mismo núcleo. |
+| 🛡️ **Seguro por diseño** | Acceso a Telegram por lista blanca, confirmación de comandos opcional (`--safe`), y un carácter que trata su propio trabajo como lo más sospechoso de la sala. |
 
 ---
 
-## The disciplined workflow
+## El flujo disciplinado
 
-On any non-trivial task, Ares doesn't jump to code. It moves through gated phases — each one reviewed before the next — so quality is structural, not a matter of luck:
+Ante una tarea no trivial, Ares no salta al código. Avanza por fases con compuertas — cada una revisada antes de la siguiente — para que la calidad sea estructural, no cuestión de suerte:
 
 ```mermaid
 flowchart LR
-    R["🔎 Research<br/>+ Spec"] --> RV1{"review<br/>spec"}
-    RV1 -->|gaps| R
+    R["🔎 Investiga<br/>+ Spec"] --> RV1{"review<br/>spec"}
+    RV1 -->|fallos| R
     RV1 -->|ok| P["🗺️ Plan"]
     P --> RV2{"review<br/>plan"}
-    RV2 -->|gaps| P
-    RV2 -->|ok| I["⚙️ Implement<br/>subagents · TDD"]
-    I --> RV3{"code<br/>review"}
+    RV2 -->|fallos| P
+    RV2 -->|ok| I["⚙️ Implementa<br/>subagentes · TDD"]
+    I --> RV3{"review<br/>código"}
     RV3 -->|fixes| I
-    RV3 -->|ok| S["📋 Summary"]
-    S --> RV4{"fidelity<br/>review"}
-    RV4 -->|honest?| S
-    RV4 -->|done| DONE(["✅"])
+    RV3 -->|ok| S["📋 Resumen"]
+    S --> RV4{"review<br/>fidelidad"}
+    RV4 -->|¿honesto?| S
+    RV4 -->|listo| DONE(["✅"])
 
     style R fill:#2F6BFF,color:#fff,stroke:#34E0FF
     style P fill:#2F6BFF,color:#fff,stroke:#34E0FF
@@ -67,15 +67,15 @@ flowchart LR
     style DONE fill:#38E08A,color:#0B1220,stroke:#38E08A
 ```
 
-The code-review phase picks its protocol automatically:
+La fase de code review elige su protocolo automáticamente:
 
 ```mermaid
 flowchart TD
-    Q["Code review needed"] --> A{"repo has<br/>.claude/skills/*review*?"}
-    A -->|yes| REPO["✅ use the repo's own skill<br/>(knows its helpers & patterns)"]
-    A -->|no| B{"technology<br/>detected?"}
+    Q["Toca revisar código"] --> A{"¿el repo tiene<br/>.claude/skills/*review*?"}
+    A -->|sí| REPO["✅ usa la skill propia del repo<br/>(conoce sus helpers y patrones)"]
+    A -->|no| B{"¿tecnología<br/>detectada?"}
     B -->|"rust · ts · svelte<br/>python · godot"| TECH["✅ ~/.ares/skills/review-&lt;tech&gt;"]
-    B -->|unknown| GEN["✅ built-in generic review"]
+    B -->|desconocida| GEN["✅ review genérico incorporado"]
 
     style REPO fill:#38E08A,color:#0B1220,stroke:#38E08A
     style TECH fill:#2F6BFF,color:#fff,stroke:#34E0FF
@@ -84,19 +84,19 @@ flowchart TD
 
 ---
 
-## How it works
+## Cómo funciona
 
-Ares is built in three layers with one rule: **only `core/` ever touches the Agent SDK.** The channels just render its normalized event stream.
+Ares está construido en tres capas con una regla: **solo `core/` toca el Agent SDK.** Los canales solo renderizan su stream de eventos normalizado.
 
 ```mermaid
 flowchart TD
-    CLI["🖥️  src/cli/<br/>Ink TUI · headless · permissions"]
-    TG["📱  src/telegram/<br/>grammY · projects · sessions · cron"]
-    CORE["🧠  src/core/<br/>agent · soul + protocols · memory<br/>toolbelt · review · codegraph"]
+    CLI["🖥️  src/cli/<br/>TUI Ink · headless · permisos"]
+    TG["📱  src/telegram/<br/>grammY · proyectos · sesiones · cron"]
+    CORE["🧠  src/core/<br/>agent · alma + protocolos · memoria<br/>toolbelt · review · codegraph"]
     SDK["⚙️  @anthropic-ai/claude-agent-sdk"]
 
-    CLI -->|normalized events| CORE
-    TG -->|normalized events| CORE
+    CLI -->|eventos normalizados| CORE
+    TG -->|eventos normalizados| CORE
     CORE --> SDK
 
     style CORE fill:#2F6BFF,stroke:#34E0FF,color:#fff
@@ -105,138 +105,142 @@ flowchart TD
     style TG fill:#101C38,stroke:#8FB3FF,color:#E6ECF5
 ```
 
-- **`core/agent.ts`** — the single gateway to the SDK's `query()`. Composes the system prompt (soul + memory + project notes), wires the in-process toolbelt and (when available) the CodeGraph MCP, runs adaptive thinking, and translates the raw stream into channel-agnostic events (`status` · `delta` · `thinking` · `todos` · `result`).
-- **`core/soul/`** — `soul.md` (identity + doctrine) and `protocols/` (debugging, verification, search-first, step-by-step, feedback, disagree, workflow, research-first, tdd, structural-eyes, project-notes, engineering-judgment, scraping). Loaded into every session.
-- **`core/memory.ts`** — persistent, file-based memory with a one-line index injected at startup.
-- **`core/review.ts`** — three-tier discovery of the code-review protocol for the current repo.
-- **`core/codegraph.ts`** — detects whether CodeGraph is indexed and attaches its MCP server.
-- **`core/toolbelt/`** — in-process MCP tools (`remember`, `screenshot`, `review_skill`); adding one is a single file plus a line in the registry.
+- **`core/agent.ts`** — la única puerta al `query()` del SDK. Compone el system prompt (alma + memoria + notas del proyecto), conecta el toolbelt in-process y (si está) el MCP de CodeGraph, corre el thinking adaptativo, y traduce el stream crudo a eventos agnósticos del canal (`status` · `delta` · `thinking` · `todos` · `result`).
+- **`core/soul/`** — `soul.md` (identidad + doctrina) y `protocols/` (debugging, verification, search-first, step-by-step, feedback, disagree, workflow, research-first, tdd, structural-eyes, project-notes, engineering-judgment, scraping). Se cargan en cada sesión.
+- **`core/memory.ts`** — memoria persistente en archivos, con un índice de una línea inyectado al arrancar.
+- **`core/review.ts`** — descubrimiento en 3 niveles del protocolo de code review del repo actual.
+- **`core/codegraph.ts`** — detecta si CodeGraph está indexado y engancha su servidor MCP.
+- **`core/toolbelt/`** — tools MCP in-process (`remember`, `screenshot`, `review_skill`); añadir una es un archivo más una línea en el registro.
 
 ---
 
-## Quickstart
+## Arranque rápido
 
-Requires **Node.js ≥ 20** and the [`claude`](https://claude.com/claude-code) CLI authenticated with your subscription (or an `ANTHROPIC_API_KEY`).
+Necesita **Node.js ≥ 20** y la CLI [`claude`](https://claude.com/claude-code) autenticada con tu suscripción (o un `ANTHROPIC_API_KEY`).
 
 ```bash
 git clone https://github.com/MarcArcherCiscar/Ares.git && cd Ares
 npm install
 npm run build
-npm link            # makes `ares` available everywhere
-npm run setup       # optional: sets up Scrapling in an isolated ~/.ares/venv
+npm link            # deja `ares` disponible en cualquier sitio
+npm run setup       # opcional: instala Scrapling en un ~/.ares/venv aislado
 ```
 
-`npm run setup` configures Ares's optional capabilities — currently
-[Scrapling](https://scrapling.readthedocs.io), Ares's default web-scraping engine.
-It creates an isolated virtualenv at `~/.ares/venv` and installs Scrapling there
-(no system Python pollution, no PEP 668 issues). The *how-to-use* skill ships
-vendored inside Ares, so scraping works the same on any machine that runs setup —
-nothing to clone or wire by hand.
+`npm run setup` configura las capacidades opcionales de Ares — ahora mismo
+[Scrapling](https://scrapling.readthedocs.io), su motor de scraping por defecto.
+Crea un virtualenv aislado en `~/.ares/venv` e instala Scrapling ahí (sin
+ensuciar el Python del sistema, sin líos de PEP 668). La skill de *cómo usarlo*
+viaja vendorizada dentro de Ares, así que el scraping funciona igual en cualquier
+máquina que corra el setup — nada que clonar ni cablear a mano.
 
-### Use it in the terminal
+### En la terminal
 
 ```bash
-cd ~/your-project
-ares                       # interactive session
-ares -p "run the tests"    # headless: execute and exit (scripts, cron, bridges)
-ares --safe                # ask for confirmation before each command
-ares -m sonnet             # override the model for this run
+cd ~/tu-proyecto
+ares                       # sesión interactiva
+ares -p "corre los tests"  # headless: ejecuta y sale (scripts, cron, puentes)
+ares -c                    # retoma la última conversación de esta carpeta
+ares -r                    # elige qué conversación retomar (selector)
+ares --safe                # pide confirmación antes de cada comando
+ares -m sonnet             # cambia el modelo para esta sesión
 ```
 
-### Use it from Telegram
+### Desde Telegram
 
 ```bash
-cp .env.example .env       # add your bot token + Telegram user id
-npm start                  # connects the bot
+cp .env.example .env       # pon el token del bot + tu user id de Telegram
+npm start                  # conecta el bot
 ```
 
-Then message your bot: `/open <project>` and give it a task. See [Configuration](#configuration).
+Luego escríbele a tu bot: `/open <proyecto>` y dale una tarea. Ver [Configuración](#configuración).
 
 ---
 
-## The two surfaces
+## Los dos canales
 
-**Terminal CLI** — an Ink TUI with the Ares banner, streaming responses, a live task checklist, visible reasoning, and clickable links. Runs without permission prompts by default (like `--dangerously-skip-permissions`); `--safe` restores per-command confirmation. The headless `ares -p "<task>"` mode powers scripts, git hooks, cron, and the Telegram bridge.
+**CLI de terminal** — una TUI Ink con el banner de Ares, respuestas en streaming, markdown renderizado (negritas, código, tablas, enlaces clicables), lista de tareas en vivo y razonamiento a la vista. Por defecto ejecuta sin pedir permiso (como `--dangerously-skip-permissions`); `--safe` reactiva la confirmación por comando. Las conversaciones persisten por carpeta: `ares -c` retoma la última, `ares -r` abre un selector para elegir, y `/sesiones` · `/retomar` · `/nueva` las gestionan a mitad de sesión. El modo headless `ares -p "<tarea>"` alimenta scripts, hooks de git, cron y el puente de Telegram.
 
-**Telegram bot** — drive Ares from your phone. Allowlisted to your user id, with per-project persistent conversations, fuzzy zero-config project discovery (`/open dafne-api`), a model picker, cron-scheduled tasks that report back, and Playwright screenshots delivered to the chat.
+**Bot de Telegram** — maneja Ares desde el móvil. Limitado a tu user id, con conversaciones persistentes por proyecto, descubrimiento difuso de proyectos sin configurar (`/open dafne-api`), selector de modelo, tareas programadas con cron que reportan de vuelta, y capturas con Playwright entregadas al chat.
 
-| Command | What it does |
+| Comando | Qué hace |
 | --- | --- |
-| `/open <name\|path>` | Open a project (Ares finds it in your folders) and switch to its conversation |
-| `/find <text>` | Search your local projects |
-| `/projects` · `/sessions` | List discovered projects · your per-project conversations |
-| `/new` | Fresh conversation for the current project |
-| `/status` | Current model, project, and session |
-| `/model <opus\|sonnet\|haiku\|id>` | Set the model for this chat |
-| `/schedule <m h dom mon dow> <prompt>` | Recurring task; `/schedules`, `/unschedule <id>` to manage |
+| `/open <nombre\|ruta>` | Abre un proyecto (Ares lo busca en tus carpetas) y cambia a su conversación |
+| `/find <texto>` | Busca entre tus proyectos locales |
+| `/projects` · `/sessions` | Lista proyectos descubiertos · tus conversaciones por proyecto |
+| `/historial` | Elige con botones qué conversación previa del proyecto retomar |
+| `/new` | Conversación nueva para el proyecto actual |
+| `/status` | Modelo, proyecto y sesión actuales |
+| `/model <opus\|sonnet\|haiku\|id>` | Fija el modelo de este chat |
+| `/schedule <m h dom mon dow> <prompt>` | Tarea recurrente; `/schedules`, `/unschedule <id>` para gestionarlas |
 
 ---
 
-## Configuration
+## Configuración
 
-**Models** live in `~/.ares/config.json` — a preference chain tried in order, plus thinking and turn budget:
+**Modelos** en `~/.ares/config.json` — una cadena de preferencia que se prueba en orden, más thinking y límite de turnos:
 
 ```json
 { "models": ["claude-fable-5", "claude-opus-4-8"], "maxTurns": 40, "thinking": "adaptive" }
 ```
 
-Authentication flows through the `claude` binary's subscription session (or `CLAUDE_CODE_OAUTH_TOKEN`); `ANTHROPIC_API_KEY` is an optional fallback.
+La autenticación va por la sesión de suscripción del binario `claude` (o `CLAUDE_CODE_OAUTH_TOKEN`); `ANTHROPIC_API_KEY` es un fallback opcional.
 
 **Telegram** (`.env`):
 
-| Variable | Purpose |
+| Variable | Para qué |
 |---|---|
-| `TELEGRAM_BOT_TOKEN` | From [@BotFather](https://t.me/BotFather). |
-| `TELEGRAM_ALLOWED_USER_IDS` | Your numeric id (from [@userinfobot](https://t.me/userinfobot)), comma-separated. **Required** — an open bot is remote code execution. |
-| `ARES_PROJECTS_ROOTS` | Folders to scan for projects, e.g. `~/Proyectos`. Recommended: scoping the scan is faster and more reliable than searching the whole home directory. |
-| `ARES_WORKSPACE_DIR` · `ARES_MAX_TURNS` · `ARES_DATA_DIR` | Fallback workspace · agentic turn cap · state directory. |
+| `TELEGRAM_BOT_TOKEN` | De [@BotFather](https://t.me/BotFather). |
+| `TELEGRAM_ALLOWED_USER_IDS` | Tu id numérico (de [@userinfobot](https://t.me/userinfobot)), separado por comas. **Obligatorio** — un bot abierto es ejecución remota de código. |
+| `ARES_PROJECTS_ROOTS` | Carpetas donde buscar proyectos, p. ej. `~/Proyectos`. Recomendado: acotar el escaneo es más rápido y fiable que rastrear todo el home. |
+| `ARES_WORKSPACE_DIR` · `ARES_MAX_TURNS` · `ARES_DATA_DIR` | Workspace por defecto · límite de turnos · directorio de estado. |
 
 ---
 
-## Keeping it alive (macOS)
+## Mantenerlo vivo (macOS)
 
-To keep the Telegram bot running while your Mac is locked, run it under
-[PM2](https://pm2.keymetrics.io) wrapped in `caffeinate` (config in
+Para que el bot de Telegram siga corriendo con el Mac bloqueado, lánzalo bajo
+[PM2](https://pm2.keymetrics.io) envuelto en `caffeinate` (config en
 `ecosystem.config.cjs`):
 
 ```bash
 npm i -g pm2
 npm run build
 pm2 start ecosystem.config.cjs && pm2 save
-pm2 startup            # prints a sudo command — run it once for auto-start on boot
+pm2 startup            # imprime un comando con sudo — ejecútalo una vez para auto-arranque
 ```
 
-`caffeinate -is` prevents idle/AC sleep while the bot runs, and PM2 restarts it
-on crash and on reboot. Locking the screen keeps processes alive; **closing a
-MacBook lid still forces sleep** (leave it open, or run on always-on hardware).
-For true 24/7 independent of your laptop, deploy the bot on a server — note it
-then works on *that* machine's repos, not your local ones.
+`caffeinate -is` evita que el Mac se duerma mientras el bot corre, y PM2 lo
+reinicia si crashea y al reiniciar. Bloquear la pantalla mantiene los procesos
+vivos; **cerrar la tapa del MacBook fuerza el sleep igualmente** (déjala abierta,
+o usa hardware siempre encendido). Para 24/7 de verdad sin depender del portátil,
+despliega el bot en un servidor — ojo: ahí trabaja sobre los repos de *esa*
+máquina, no los de tu Mac.
 
-## Security
+## Seguridad
 
-Ares can run shell commands and modify files autonomously — that's the point, and the risk.
+Ares puede ejecutar comandos y modificar archivos de forma autónoma — ese es el objetivo, y el riesgo.
 
-- The Telegram channel runs with permissions bypassed (no interactive approval over chat), so **`TELEGRAM_ALLOWED_USER_IDS` is mandatory**.
-- The CLI defaults to no-confirmation execution; use `ares --safe` for per-command approval on anything sensitive.
-- Run it against repos and branches you're comfortable letting an agent edit; prefer a container or VM for untrusted work.
-- The bot reaches Telegram via outbound long-polling — no inbound ports, no webhook to expose.
-
----
-
-## Tech stack
-
-TypeScript (NodeNext, Node ≥ 20) · [`@anthropic-ai/claude-agent-sdk`](https://code.claude.com/docs/en/agent-sdk/typescript) · [Ink](https://github.com/vadimdemedes/ink) + React (TUI) · [grammY](https://grammy.dev) (Telegram) · [Playwright](https://playwright.dev) (screenshots) · [croner](https://github.com/hexagon/croner) (scheduling) · [Vitest](https://vitest.dev) (tests) · [Zod](https://zod.dev) (schemas).
+- El canal de Telegram corre con permisos bypassed (no hay aprobación interactiva por chat), así que **`TELEGRAM_ALLOWED_USER_IDS` es obligatorio**.
+- La CLI ejecuta sin confirmación por defecto; usa `ares --safe` para aprobar comando a comando lo sensible.
+- Úsalo en repos y ramas que te valga dejar editar a un agente; para lo no confiable, mejor un contenedor o VM.
+- El bot habla con Telegram por long-polling saliente — sin puertos de entrada, sin webhook que exponer.
 
 ---
 
-## Identity
+## Stack
 
-The Spartan helmet (Ares Blue on Ink) lives in `assets/` — `ares-helmet.png` (1254×1254), `ares-avatar-640.png` (Telegram avatar), `ares-icon-512.png` (icon). The CLI banner is derived into truecolor ANSI art via `scripts/helmet-to-ansi.mjs`.
+TypeScript (NodeNext, Node ≥ 20) · [`@anthropic-ai/claude-agent-sdk`](https://code.claude.com/docs/en/agent-sdk/typescript) · [Ink](https://github.com/vadimdemedes/ink) + React (TUI) · [grammY](https://grammy.dev) (Telegram) · [Playwright](https://playwright.dev) (capturas) · [croner](https://github.com/hexagon/croner) (cron) · [Vitest](https://vitest.dev) (tests) · [Zod](https://zod.dev) (esquemas).
 
-Palette — Ares Blue `#2F6BFF` · Spark `#34E0FF` · Sky `#8FB3FF` · Gold `#FFC53D` · Ember `#FF5C5C` · Laurel `#38E08A` · Steel `#8B98B0` · Ink `#0B1220`.
+---
+
+## Identidad
+
+El casco espartano (Ares Blue sobre Ink) vive en `assets/` — `ares-helmet.png` (1254×1254), `ares-avatar-640.png` (avatar de Telegram), `ares-icon-512.png` (icono). El banner del CLI se deriva en arte ANSI truecolor con `scripts/helmet-to-ansi.mjs`.
+
+Paleta — Ares Blue `#2F6BFF` · Spark `#34E0FF` · Sky `#8FB3FF` · Gold `#FFC53D` · Ember `#FF5C5C` · Laurel `#38E08A` · Steel `#8B98B0` · Ink `#0B1220`.
 
 ---
 
 <div align="center">
-<sub>Built by Marc Archer · powered by the Claude Agent SDK</sub>
+<sub>Hecho por Marc Archer · sobre el Claude Agent SDK</sub>
 </div>
